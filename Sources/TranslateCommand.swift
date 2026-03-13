@@ -12,7 +12,7 @@ func runTranslateCommand(args: [String]) {
         exit(1)
     }
 
-    let translation = translate(text: text)
+    let translation = translateText(text)
     print(translation, terminator: "")
 }
 
@@ -41,7 +41,7 @@ private func readInputText(args: [String]) -> String {
     exit(1)
 }
 
-private func ensureOllamaReady() {
+func ensureOllamaReady() {
     ensureBrewDependencies([BrewDependency(package: "ollama", binary: "ollama")])
 
     if !isOllamaRunning() {
@@ -112,7 +112,7 @@ private func ensureModelPulled() {
     }
 }
 
-private func translate(text: String) -> String {
+func translateText(_ text: String) -> String {
     let prompt = "Translate the following English text to Russian. Output only the translation, nothing else.\n\n\(text)"
 
     // Build JSON payload

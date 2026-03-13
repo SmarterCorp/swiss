@@ -80,8 +80,11 @@ func runTwitterCommand(args: [String]) {
 
     migrateOldUrls()
 
-    guard let action = args.first else {
-        openNewsboat()
+    let translateMode = args.contains("-ru")
+    let filteredArgs = args.filter { $0 != "-ru" }
+
+    guard let action = filteredArgs.first else {
+        openNewsboat(translate: translateMode)
         return
     }
 
@@ -223,18 +226,31 @@ private func listAccounts() {
     }
 }
 
-private func openNewsboat() {
+private func openNewsboat(translate: Bool = false) {
     let twitterLines = readLines().filter { isTwitterLine($0) }
     if twitterLines.isEmpty {
         print("No twitter accounts. Add one with: swiss twitter add <username>")
         return
     }
 
-    let tmpDir = NSTemporaryDirectory() + "swiss-twitter"
-    let tmpUrls = tmpDir + "/urls"
-    let fm = FileManager.default
-    try? fm.createDirectory(atPath: tmpDir, withIntermediateDirectories: true)
-    try? twitterLines.joined(separator: "\n").write(toFile: tmpUrls, atomically: true, encoding: .utf8)
+    let tmpUrls: String
+    if translate {
+        let feedUrls = twitterLines.map { $0.components(separatedBy: " ").first ?? "" }
+        let labels = twitterLines.map { line -> String in
+            // Extract "~@username" label
+            if let start = line.range(of: "\"~"), let end = line.range(of: "\"", range: line.index(start.upperBound, offsetBy: 0)..<line.endIndex) {
+                return String(line[start.upperBound..<end.lowerBound])
+            }
+            return extractUsername(from: line)
+        }
+        tmpUrls = translateFeeds(urls: feedUrls, labels: labels)
+    } else {
+        let tmpDir = NSTemporaryDirectory() + "swiss-twitter"
+        tmpUrls = tmpDir + "/urls"
+        let fm = FileManager.default
+        try? fm.createDirectory(atPath: tmpDir, withIntermediateDirectories: true)
+        try? twitterLines.joined(separator: "\n").write(toFile: tmpUrls, atomically: true, encoding: .utf8)
+    }
 
     let configPath = newsboatConfigPath()
     let args: [String] = ["newsboat", "-C", configPath, "-u", tmpUrls, "-r"]

@@ -32,6 +32,7 @@ swiftc \
     Sources/ClipboardCommand.swift \
     Sources/DockerDependency.swift \
     Sources/TranslateCommand.swift \
+    Sources/FeedTranslator.swift \
     Sources/NewsboatConfig.swift \
     Sources/TwitterCommand.swift
 

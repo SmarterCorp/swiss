@@ -18,7 +18,7 @@ func newsboatConfigPath() -> String {
 
     // Translation: press , then t to translate current article to Russian
     lines.append("# swiss: translate article to Russian (press ,t)")
-    lines.append("macro t pipe-to \"sh -c 'TMP=$(mktemp /tmp/swiss-translate.XXXXXX) && swiss translate > $TMP 2>&1 && less $TMP; rm -f $TMP'\" -- \"Translate to Russian\"")
+    lines.append("macro t pipe-to \"swiss translate\" -- \"Translate to Russian\"")
 
     let content = lines.joined(separator: "\n") + "\n"
     try? content.write(toFile: configPath, atomically: true, encoding: .utf8)
