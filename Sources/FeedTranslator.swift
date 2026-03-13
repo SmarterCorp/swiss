@@ -23,20 +23,31 @@ func translateFeeds(urls: [String], labels: [String]) -> String {
             continue
         }
 
-        let titles = extractTagTexts(from: xml, tag: "title")
-        let uncached = titles.filter { !isCached(text: $0) }
-        fputs("\(titles.count) titles, \(uncached.count) to translate\n", stderr)
+        // Collect all translatable texts from titles, descriptions, summaries
+        let tags = ["title", "description", "summary"]
+        var allTexts: [String] = []
+        for tag in tags {
+            allTexts += extractTagTexts(from: xml, tag: tag)
+        }
+        let uncached = allTexts.filter { !isCached(text: $0) }
+        fputs("\(allTexts.count) texts, \(uncached.count) to translate\n", stderr)
 
-        // Batch translate all uncached titles in one Ollama call
-        if !uncached.isEmpty {
-            let batch = batchTranslate(texts: uncached)
-            for (original, translated) in zip(uncached, batch) {
+        // Batch translate uncached texts (in chunks to avoid huge prompts)
+        let chunkSize = 10
+        for chunk in stride(from: 0, to: uncached.count, by: chunkSize) {
+            let end = min(chunk + chunkSize, uncached.count)
+            let slice = Array(uncached[chunk..<end])
+            let batch = batchTranslate(texts: slice)
+            for (original, translated) in zip(slice, batch) {
                 cacheTranslation(original: original, translated: translated)
             }
         }
 
-        // Replace titles in XML with cached translations
-        let translated = replaceTagTexts(in: xml, tag: "title")
+        // Replace all tags in XML with cached translations
+        var translated = xml
+        for tag in tags {
+            translated = replaceTagTexts(in: translated, tag: tag)
+        }
         let feedFile = tmpDir + "/feed-\(i).xml"
         try? translated.write(toFile: feedFile, atomically: true, encoding: .utf8)
 
