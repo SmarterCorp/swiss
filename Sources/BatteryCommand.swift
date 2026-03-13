@@ -49,32 +49,25 @@ func runBatteryCommand() {
         timeStr = "Calculating..."
     }
 
-    let chargeEmoji: String
-    switch percent {
-    case 60...100: chargeEmoji = "🟢"
-    case 20...59:  chargeEmoji = "🟡"
-    default:       chargeEmoji = "🔴"
+    func sq(_ value: Int, good: ClosedRange<Int>, warn: ClosedRange<Int>) -> String {
+        if good.contains(value) { return "🟩" }
+        if warn.contains(value) { return "🟨" }
+        return "🟥"
     }
 
-    let healthEmoji: String
-    switch health {
-    case 80...200: healthEmoji = "🟢"
-    case 50...79:  healthEmoji = "🟡"
-    default:       healthEmoji = "🔴"
+    func sqTemp(_ t: Double) -> String {
+        if t <= 35   { return "🟩" }
+        if t <= 40   { return "🟨" }
+        return "🟥"
     }
 
-    let tempEmoji: String
-    switch tempC {
-    case ...35:    tempEmoji = "🟢"
-    case 35.1...40: tempEmoji = "🟡"
-    default:       tempEmoji = "🔴"
-    }
-
+    let w = 13 // label column width
+    let pad = "  " // square column placeholder (2 chars to match emoji width)
     print("Battery:")
-    print("  Charge:      \(chargeEmoji) \(percent)%")
-    print("  Status:      \(status)")
-    print("  Time:        \(timeStr)")
-    print("  Health:      \(healthEmoji) \(health)% (\(maxCap)/\(designCap) mAh)")
-    print("  Cycles:      \(cycleCount)")
-    print("  Temperature: \(tempEmoji) \(String(format: "%.1f", tempC))°C")
+    print("  \("Charge".padding(toLength: w, withPad: " ", startingAt: 0)) \(sq(percent, good: 60...100, warn: 20...59)) \(percent)%")
+    print("  \("Status".padding(toLength: w, withPad: " ", startingAt: 0)) \(pad) \(status)")
+    print("  \("Time".padding(toLength: w, withPad: " ", startingAt: 0)) \(pad) \(timeStr)")
+    print("  \("Health".padding(toLength: w, withPad: " ", startingAt: 0)) \(sq(health, good: 80...200, warn: 50...79)) \(health)% (\(maxCap)/\(designCap) mAh)")
+    print("  \("Cycles".padding(toLength: w, withPad: " ", startingAt: 0)) \(pad) \(cycleCount)")
+    print("  \("Temperature".padding(toLength: w, withPad: " ", startingAt: 0)) \(sqTemp(tempC)) \(String(format: "%.1f", tempC))°C")
 }
