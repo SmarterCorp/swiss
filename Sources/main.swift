@@ -54,6 +54,8 @@ case "trash":
     runTrashCommand(args: Array(args.dropFirst()))
 case "clipboard":
     runClipboardCommand(args: Array(args.dropFirst()))
+case "version", "-v", "--version":
+    print("swiss 1.0.0")
 case "help", "-h", "--help":
     printUsage()
 default:
