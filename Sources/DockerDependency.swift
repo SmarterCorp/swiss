@@ -103,7 +103,7 @@ func ensureDockerReady() -> String {
     return docker
 }
 
-func ensureContainer(docker: String, name: String, image: String, ports: String) {
+func ensureContainer(docker: String, name: String, image: String, ports: String, envVars: [String: String] = [:]) {
     // Check if container exists
     let inspect = Process()
     let inspectPipe = Pipe()
@@ -118,27 +118,44 @@ func ensureContainer(docker: String, name: String, image: String, ports: String)
         let data = inspectPipe.fileHandleForReading.readDataToEndOfFile()
         let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         if output == "true" {
-            return // already running
-        }
-        // Container exists but stopped — start it
-        fputs("Starting \(name) container...\n", stderr)
-        let start = Process()
-        start.executableURL = URL(fileURLWithPath: docker)
-        start.arguments = ["start", name]
-        start.standardOutput = FileHandle.nullDevice
-        try? start.run()
-        start.waitUntilExit()
-        if start.terminationStatus == 0 {
-            waitForHTTP(port: ports.components(separatedBy: ":").first ?? "1200")
-            return
+            // If env vars changed, recreate the container
+            if !envVars.isEmpty && containerEnvChanged(docker: docker, name: name, envVars: envVars) {
+                fputs("Configuration changed. Recreating \(name) container...\n", stderr)
+                stopAndRemoveContainer(docker: docker, name: name)
+            } else {
+                return // already running with correct config
+            }
+        } else {
+            // Container exists but stopped — remove it if env changed, otherwise start
+            if !envVars.isEmpty && containerEnvChanged(docker: docker, name: name, envVars: envVars) {
+                stopAndRemoveContainer(docker: docker, name: name)
+            } else {
+                fputs("Starting \(name) container...\n", stderr)
+                let start = Process()
+                start.executableURL = URL(fileURLWithPath: docker)
+                start.arguments = ["start", name]
+                start.standardOutput = FileHandle.nullDevice
+                try? start.run()
+                start.waitUntilExit()
+                if start.terminationStatus == 0 {
+                    waitForHTTP(port: ports.components(separatedBy: ":").first ?? "1200")
+                    return
+                }
+            }
         }
     }
 
     // Container doesn't exist — create and run
     fputs("Pulling and starting \(image)...\n", stderr)
+    var args = ["run", "-d", "--name", name, "-p", ports, "--restart", "unless-stopped"]
+    for (key, value) in envVars {
+        args += ["-e", "\(key)=\(value)"]
+    }
+    args.append(image)
+
     let run = Process()
     run.executableURL = URL(fileURLWithPath: docker)
-    run.arguments = ["run", "-d", "--name", name, "-p", ports, "--restart", "unless-stopped", image]
+    run.arguments = args
     try? run.run()
     run.waitUntilExit()
 
@@ -149,6 +166,37 @@ func ensureContainer(docker: String, name: String, image: String, ports: String)
 
     let port = ports.components(separatedBy: ":").first ?? "1200"
     waitForHTTP(port: port)
+}
+
+private func stopAndRemoveContainer(docker: String, name: String) {
+    let stop = Process()
+    stop.executableURL = URL(fileURLWithPath: docker)
+    stop.arguments = ["rm", "-f", name]
+    stop.standardOutput = FileHandle.nullDevice
+    stop.standardError = FileHandle.nullDevice
+    try? stop.run()
+    stop.waitUntilExit()
+}
+
+private func containerEnvChanged(docker: String, name: String, envVars: [String: String]) -> Bool {
+    let inspect = Process()
+    let pipe = Pipe()
+    inspect.executableURL = URL(fileURLWithPath: docker)
+    inspect.arguments = ["inspect", "--format", "{{range .Config.Env}}{{println .}}{{end}}", name]
+    inspect.standardOutput = pipe
+    inspect.standardError = FileHandle.nullDevice
+    try? inspect.run()
+    inspect.waitUntilExit()
+
+    let data = pipe.fileHandleForReading.readDataToEndOfFile()
+    let currentEnv = String(data: data, encoding: .utf8) ?? ""
+
+    for (key, value) in envVars {
+        if !currentEnv.contains("\(key)=\(value)") {
+            return true
+        }
+    }
+    return false
 }
 
 private func waitForHTTP(port: String) {

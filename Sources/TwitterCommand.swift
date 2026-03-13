@@ -12,14 +12,61 @@ private let tag = "twitter"
 private let rsshubContainerName = "rsshub"
 private let rsshubImage = "diygod/rsshub"
 private let rsshubPort = "1200:1200"
+private let configDir = NSHomeDirectory() + "/.config/swiss"
+private let twitterConfigFile = NSHomeDirectory() + "/.config/swiss/twitter"
+
+private func readAuthToken() -> String? {
+    // 1. Environment variable
+    if let token = ProcessInfo.processInfo.environment["TWITTER_AUTH_TOKEN"], !token.isEmpty {
+        return token
+    }
+    // 2. Config file
+    if let content = try? String(contentsOfFile: twitterConfigFile, encoding: .utf8) {
+        for line in content.components(separatedBy: "\n") {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed.hasPrefix("auth_token=") {
+                let value = String(trimmed.dropFirst("auth_token=".count)).trimmingCharacters(in: .whitespaces)
+                if !value.isEmpty { return value }
+            }
+        }
+    }
+    return nil
+}
+
+private func saveAuthToken(_ token: String) {
+    let fm = FileManager.default
+    try? fm.createDirectory(atPath: configDir, withIntermediateDirectories: true)
+    try? "auth_token=\(token)\n".write(toFile: twitterConfigFile, atomically: true, encoding: .utf8)
+}
 
 func runTwitterCommand(args: [String]) {
     ensureBrewDependencies([BrewDependency(package: "newsboat", binary: "newsboat")])
 
+    // Handle "auth" subcommand before Docker setup
+    if args.first == "auth" {
+        handleAuth(args: Array(args.dropFirst()))
+        return
+    }
+
     // Ensure Docker + RSSHub are running (skip if custom RSSHUB_URL is set)
     if ProcessInfo.processInfo.environment["RSSHUB_URL"] == nil {
+        guard let authToken = readAuthToken() else {
+            fputs("Twitter auth token is not configured.\n", stderr)
+            fputs("To get your token:\n", stderr)
+            fputs("  1. Open x.com in your browser and log in\n", stderr)
+            fputs("  2. Open DevTools (F12) -> Application -> Cookies -> x.com\n", stderr)
+            fputs("  3. Find the 'auth_token' cookie and copy its value\n", stderr)
+            fputs("  4. Run: swiss twitter auth <token>\n", stderr)
+            exit(1)
+        }
         let docker = ensureDockerReady()
-        ensureContainer(docker: docker, name: rsshubContainerName, image: rsshubImage, ports: rsshubPort)
+        ensureContainer(
+            docker: docker,
+            name: rsshubContainerName,
+            image: rsshubImage,
+            ports: rsshubPort,
+            envVars: ["TWITTER_AUTH_TOKEN": authToken]
+        )
     }
 
     let dir = NSHomeDirectory() + "/.newsboat"
@@ -53,11 +100,33 @@ func runTwitterCommand(args: [String]) {
         removeAccount(args[1])
     case "list":
         listAccounts()
+    case "auth":
+        handleAuth(args: Array(args.dropFirst()))
     default:
         fputs("Unknown twitter subcommand: \(action)\n", stderr)
-        fputs("Usage: swiss twitter [add|remove|list]\n", stderr)
+        fputs("Usage: swiss twitter [auth|add|remove|list]\n", stderr)
         exit(1)
     }
+}
+
+private func handleAuth(args: [String]) {
+    guard let token = args.first else {
+        if let existing = readAuthToken() {
+            let masked = String(existing.prefix(4)) + "..." + String(existing.suffix(4))
+            print("Auth token is configured: \(masked)")
+        } else {
+            print("No auth token configured.")
+        }
+        print("")
+        print("To set your token:")
+        print("  1. Open x.com in your browser and log in")
+        print("  2. Open DevTools (F12) -> Application -> Cookies -> x.com")
+        print("  3. Find the 'auth_token' cookie and copy its value")
+        print("  4. Run: swiss twitter auth <token>")
+        return
+    }
+    saveAuthToken(token)
+    print("Auth token saved.")
 }
 
 private let legacyRsshubBase = "https://rsshub.app/twitter/user/"
