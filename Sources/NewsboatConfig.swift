@@ -16,9 +16,8 @@ func newsboatConfigPath() -> String {
         lines.append("")
     }
 
-    // Translation: press t then t to translate current article to Russian
-    lines.append("# swiss: translate article to Russian (press t)")
-    lines.append("macro-prefix t")
+    // Translation: press , then t to translate current article to Russian
+    lines.append("# swiss: translate article to Russian (press ,t)")
     lines.append("macro t pipe-to \"swiss translate | less\" -- \"Translate to Russian\"")
 
     let content = lines.joined(separator: "\n") + "\n"
