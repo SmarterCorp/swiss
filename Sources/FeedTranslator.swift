@@ -48,6 +48,11 @@ func translateFeeds(urls: [String], labels: [String]) -> String {
         for tag in tags {
             translated = replaceTagTexts(in: translated, tag: tag)
         }
+
+        // Remove content:encoded so newsboat shows translated description instead
+        translated = removeTag(from: translated, tag: "content:encoded")
+        // For Atom feeds, remove <content> so it falls back to <summary>
+        translated = removeTag(from: translated, tag: "content")
         let feedFile = tmpDir + "/feed-\(i).xml"
         try? translated.write(toFile: feedFile, atomically: true, encoding: .utf8)
 
@@ -197,6 +202,17 @@ private func getCached(text: String) -> String? {
 
 private func cacheTranslation(original: String, translated: String) {
     try? translated.write(toFile: cacheDir + "/\(cacheKey(for: original)).txt", atomically: true, encoding: .utf8)
+}
+
+// MARK: - XML removal
+
+private func removeTag(from xml: String, tag: String) -> String {
+    let escapedTag = NSRegularExpression.escapedPattern(for: tag)
+    let pattern = "<\(escapedTag)[^>]*>.*?</\(escapedTag)>"
+    guard let regex = try? NSRegularExpression(pattern: pattern, options: [.dotMatchesLineSeparators]) else {
+        return xml
+    }
+    return regex.stringByReplacingMatches(in: xml, range: NSRange(xml.startIndex..., in: xml), withTemplate: "")
 }
 
 // MARK: - Helpers
