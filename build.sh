@@ -26,13 +26,25 @@ swiftc \
     Sources/TopCommand.swift
 
 echo "Build complete: $BUILD_DIR/$APP_NAME"
-echo ""
-echo "Commands:"
-echo "  ./$BUILD_DIR/$APP_NAME display off   — disconnect external monitors"
-echo "  ./$BUILD_DIR/$APP_NAME display on    — reconnect external monitors"
-echo "  ./$BUILD_DIR/$APP_NAME usb           — list USB devices"
-echo "  ./$BUILD_DIR/$APP_NAME cursor start  — start cursor teleporter"
-echo "  ./$BUILD_DIR/$APP_NAME cursor stop   — stop cursor teleporter"
-echo "  ./$BUILD_DIR/$APP_NAME rss           — RSS reader (newsboat)"
-echo "  ./$BUILD_DIR/$APP_NAME dua           — disk usage analyzer"
-echo "  ./$BUILD_DIR/$APP_NAME top           — activity monitor"
+
+INSTALL_DIR="/usr/local/bin"
+
+if [[ "$1" == "install" ]]; then
+    echo "Installing $APP_NAME to $INSTALL_DIR..."
+    cp "$BUILD_DIR/$APP_NAME" "$INSTALL_DIR/$APP_NAME"
+    echo "Installed! You can now use '$APP_NAME' from anywhere."
+else
+    echo ""
+    echo "To install system-wide, run:"
+    echo "  ./build.sh install"
+    echo ""
+    echo "Commands:"
+    echo "  $APP_NAME display off   — disconnect external monitors"
+    echo "  $APP_NAME display on    — reconnect external monitors"
+    echo "  $APP_NAME usb           — list USB devices"
+    echo "  $APP_NAME cursor start  — start cursor teleporter"
+    echo "  $APP_NAME cursor stop   — stop cursor teleporter"
+    echo "  $APP_NAME rss           — RSS reader (newsboat)"
+    echo "  $APP_NAME dua           — disk usage analyzer"
+    echo "  $APP_NAME top           — activity monitor"
+fi
