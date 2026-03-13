@@ -60,10 +60,19 @@ private func fetchURL(_ url: String) -> String? {
     process.standardOutput = pipe
     process.standardError = FileHandle.nullDevice
     try? process.run()
+
+    // Read stdout in background to avoid pipe buffer deadlock
+    var data = Data()
+    let group = DispatchGroup()
+    group.enter()
+    DispatchQueue.global().async {
+        data = pipe.fileHandleForReading.readDataToEndOfFile()
+        group.leave()
+    }
     process.waitUntilExit()
+    group.wait()
 
     guard process.terminationStatus == 0 else { return nil }
-    let data = pipe.fileHandleForReading.readDataToEndOfFile()
     return String(data: data, encoding: .utf8)
 }
 
