@@ -3,10 +3,13 @@ import Foundation
 private let appName = "Pipit"
 private let appPath = "/Applications/\(appName).app"
 private let dmgURL = "https://github.com/pxkan/Pipit-Releases/releases/download/v1.2.5/Pipit-1.2.5.dmg"
+private let pipitDomain = "com.pxkan.pipit2"
 
 func runVoiceCommand() {
-    if !FileManager.default.fileExists(atPath: appPath) {
+    let freshInstall = !FileManager.default.fileExists(atPath: appPath)
+    if freshInstall {
         installPipit()
+        configurePipit()
     }
 
     fputs("Launching \(appName)...\n", stderr)
@@ -92,6 +95,37 @@ private func installPipit() {
     detach(volumePath)
     try? FileManager.default.removeItem(atPath: tmpDmg)
     fputs("\(appName) installed.\n", stderr)
+}
+
+private func configurePipit() {
+    fputs("Configuring \(appName) defaults...\n", stderr)
+
+    let defaults: [(String, String, String)] = [
+        // Launch at startup
+        ("-bool", "LaunchAtStartup", "true"),
+        // Hide dock icon — run from menu bar only
+        ("-bool", "HideDockIcon", "true"),
+        // Show menu bar icon
+        ("-bool", "ShowMenuBarIcon", "true"),
+        // Disable sound effects
+        ("-bool", "EnableSoundEffects", "false"),
+        // Multi-language mode (supports Russian + English)
+        ("-string", "LanguageMode", "multiLanguage"),
+        // Use Parakeet model (supports 25 European languages)
+        ("-string", "SelectedVoiceModel", "Parakeet TDT 0.6B"),
+        // Mark onboarding as completed
+        ("-bool", "HasCompletedOnboarding", "true"),
+    ]
+
+    for (type, key, value) in defaults {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/defaults")
+        process.arguments = ["write", pipitDomain, key, type, value]
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        try? process.run()
+        process.waitUntilExit()
+    }
 }
 
 private func detach(_ volumePath: String) {
