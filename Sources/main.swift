@@ -1,9 +1,10 @@
 import Foundation
 
+let version = "1.0.0"
 let args = Array(CommandLine.arguments.dropFirst())
 
 func printUsage() {
-    print("swiss — CLI multitool")
+    print("swiss \(version) — CLI multitool")
     print("")
     print("Commands:")
     print("  display off   — disconnect external monitors")
@@ -20,6 +21,7 @@ func printUsage() {
     print("  ports               — list open listening ports")
     print("  trash [files...]    — move files to Trash (no args: show info)")
     print("  clipboard [copy|paste] — copy stdin / paste to stdout")
+    print("  version             — print version")
     print("")
     print("Usage: swiss <command> [args]")
 }
@@ -55,7 +57,7 @@ case "trash":
 case "clipboard":
     runClipboardCommand(args: Array(args.dropFirst()))
 case "version", "-v", "--version":
-    print("swiss 1.0.0")
+    print("swiss \(version)")
 case "help", "-h", "--help":
     printUsage()
 default:
