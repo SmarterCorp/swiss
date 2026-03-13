@@ -23,7 +23,7 @@ func translateFeeds(urls: [String], labels: [String]) -> String {
             continue
         }
 
-        let translated = translateFeedXML(xml)
+        let translated = translateFeedXML(xml, label: label)
         let feedFile = tmpDir + "/feed-\(i).xml"
         try? translated.write(toFile: feedFile, atomically: true, encoding: .utf8)
 
@@ -50,22 +50,31 @@ private func fetchURL(_ url: String) -> String? {
     return String(data: data, encoding: .utf8)
 }
 
-private func translateFeedXML(_ xml: String) -> String {
+private func translateFeedXML(_ xml: String, label: String) -> String {
+    // Count total items to translate
+    let itemCount = countItems(in: xml)
+    var postIndex = 0
+
     var result = xml
 
     // Translate <title>...</title> inside <item> or <entry> blocks
-    result = translateTagContent(in: result, tag: "title")
+    result = translateTagContent(in: result, tag: "title", label: label, itemCount: itemCount, postIndex: &postIndex)
     // Translate <description>...</description>
-    result = translateTagContent(in: result, tag: "description")
+    result = translateTagContent(in: result, tag: "description", label: label, itemCount: itemCount, postIndex: &postIndex)
     // Translate <content:encoded>...</content:encoded> (common in RSS)
-    result = translateTagContent(in: result, tag: "content:encoded")
+    result = translateTagContent(in: result, tag: "content:encoded", label: label, itemCount: itemCount, postIndex: &postIndex)
     // Translate <summary>...</summary> (Atom feeds)
-    result = translateTagContent(in: result, tag: "summary")
+    result = translateTagContent(in: result, tag: "summary", label: label, itemCount: itemCount, postIndex: &postIndex)
 
     return result
 }
 
-private func translateTagContent(in xml: String, tag: String) -> String {
+private func countItems(in xml: String) -> Int {
+    let itemPattern = try? NSRegularExpression(pattern: "<(item|entry)[\\s>]", options: [])
+    return itemPattern?.numberOfMatches(in: xml, range: NSRange(xml.startIndex..., in: xml)) ?? 0
+}
+
+private func translateTagContent(in xml: String, tag: String, label: String, itemCount: Int, postIndex: inout Int) -> String {
     let escapedTag = NSRegularExpression.escapedPattern(for: tag)
     let pattern = "(<\(escapedTag)[^>]*>)(<\\!\\[CDATA\\[)?(.*?)(\\]\\]>)?(</\(escapedTag)>)"
 
@@ -87,7 +96,7 @@ private func translateTagContent(in xml: String, tag: String) -> String {
         let content = String(result[swiftRange])
         let stripped = stripHTML(content).trimmingCharacters(in: .whitespacesAndNewlines)
 
-        // Skip empty, very short, or already non-English content
+        // Skip empty, very short content
         guard stripped.count > 5 else { continue }
 
         // Check cache
@@ -98,6 +107,8 @@ private func translateTagContent(in xml: String, tag: String) -> String {
         if let cached = try? String(contentsOfFile: cachePath, encoding: .utf8) {
             translated = cached
         } else {
+            postIndex += 1
+            fputs("  \(label): post \(postIndex)/\(itemCount) (\(tag))...\n", stderr)
             translated = translateText(stripped)
             try? translated.write(toFile: cachePath, atomically: true, encoding: .utf8)
         }
