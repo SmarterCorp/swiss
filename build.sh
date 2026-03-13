@@ -29,7 +29,12 @@ swiftc \
     Sources/BatteryCommand.swift \
     Sources/PortsCommand.swift \
     Sources/TrashCommand.swift \
-    Sources/ClipboardCommand.swift
+    Sources/ClipboardCommand.swift \
+    Sources/DockerDependency.swift \
+    Sources/TranslateCommand.swift \
+    Sources/FeedTranslator.swift \
+    Sources/NewsboatConfig.swift \
+    Sources/TwitterCommand.swift
 
 echo "Build complete: $BUILD_DIR/$APP_NAME"
 
