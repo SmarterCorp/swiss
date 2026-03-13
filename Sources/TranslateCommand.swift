@@ -29,8 +29,8 @@ private func readInputText(args: [String]) -> String {
 
     // Read from stdin
     if isatty(STDIN_FILENO) == 0 {
-        if let data = Optional(FileHandle.standardInput.readDataToEndOfFile()),
-           let content = String(data: data, encoding: .utf8) {
+        let data = FileHandle.standardInput.readDataToEndOfFile()
+        if let content = String(data: data, encoding: .utf8) {
             return content
         }
     }
@@ -75,8 +75,16 @@ private func isOllamaRunning() -> Bool {
     process.standardOutput = pipe
     process.standardError = FileHandle.nullDevice
     try? process.run()
+
+    var data = Data()
+    let group = DispatchGroup()
+    group.enter()
+    DispatchQueue.global().async {
+        data = pipe.fileHandleForReading.readDataToEndOfFile()
+        group.leave()
+    }
     process.waitUntilExit()
-    let data = pipe.fileHandleForReading.readDataToEndOfFile()
+    group.wait()
     let code = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     return code == "200"
 }
@@ -89,9 +97,17 @@ private func ensureModelPulled() {
     process.standardOutput = pipe
     process.standardError = FileHandle.nullDevice
     try? process.run()
-    process.waitUntilExit()
 
-    let data = pipe.fileHandleForReading.readDataToEndOfFile()
+    var data = Data()
+    let group = DispatchGroup()
+    group.enter()
+    DispatchQueue.global().async {
+        data = pipe.fileHandleForReading.readDataToEndOfFile()
+        group.leave()
+    }
+    process.waitUntilExit()
+    group.wait()
+
     let output = String(data: data, encoding: .utf8) ?? ""
 
     if output.contains(ollamaModel) {
@@ -131,7 +147,7 @@ func translateText(_ text: String) -> String {
     }
 
     // Write JSON to a temp file to avoid pipe deadlock
-    let tmpFile = NSTemporaryDirectory() + "swiss-translate-req.json"
+    let tmpFile = NSTemporaryDirectory() + "swiss-translate-\(ProcessInfo.processInfo.globallyUniqueString).json"
     try? jsonData.write(to: URL(fileURLWithPath: tmpFile))
 
     let process = Process()

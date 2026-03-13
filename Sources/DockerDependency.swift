@@ -112,11 +112,19 @@ func ensureContainer(docker: String, name: String, image: String, ports: String,
     inspect.standardOutput = inspectPipe
     inspect.standardError = FileHandle.nullDevice
     try? inspect.run()
+
+    var inspectData = Data()
+    let inspectGroup = DispatchGroup()
+    inspectGroup.enter()
+    DispatchQueue.global().async {
+        inspectData = inspectPipe.fileHandleForReading.readDataToEndOfFile()
+        inspectGroup.leave()
+    }
     inspect.waitUntilExit()
+    inspectGroup.wait()
 
     if inspect.terminationStatus == 0 {
-        let data = inspectPipe.fileHandleForReading.readDataToEndOfFile()
-        let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let output = String(data: inspectData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         if output == "true" {
             // If env vars changed, recreate the container
             if !envVars.isEmpty && containerEnvChanged(docker: docker, name: name, envVars: envVars) {
@@ -186,9 +194,17 @@ private func containerEnvChanged(docker: String, name: String, envVars: [String:
     inspect.standardOutput = pipe
     inspect.standardError = FileHandle.nullDevice
     try? inspect.run()
-    inspect.waitUntilExit()
 
-    let data = pipe.fileHandleForReading.readDataToEndOfFile()
+    var data = Data()
+    let group = DispatchGroup()
+    group.enter()
+    DispatchQueue.global().async {
+        data = pipe.fileHandleForReading.readDataToEndOfFile()
+        group.leave()
+    }
+    inspect.waitUntilExit()
+    group.wait()
+
     let currentEnv = String(data: data, encoding: .utf8) ?? ""
 
     for (key, value) in envVars {
@@ -209,8 +225,16 @@ private func waitForHTTP(port: String) {
         curl.standardOutput = pipe
         curl.standardError = FileHandle.nullDevice
         try? curl.run()
+
+        var data = Data()
+        let group = DispatchGroup()
+        group.enter()
+        DispatchQueue.global().async {
+            data = pipe.fileHandleForReading.readDataToEndOfFile()
+            group.leave()
+        }
         curl.waitUntilExit()
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        group.wait()
         let code = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         if code == "200" || code == "302" || code == "301" {
             fputs("Service is ready.\n", stderr)

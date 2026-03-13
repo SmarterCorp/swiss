@@ -23,12 +23,7 @@ func runRSSCommand(args: [String]) {
         if let content = try? String(contentsOfFile: urlsFile, encoding: .utf8) {
             let lines = content.components(separatedBy: "\n").filter { !$0.isEmpty && !$0.hasPrefix("#") }
             let feedUrls = lines.map { $0.components(separatedBy: " ").first ?? "" }
-            let labels = lines.map { line -> String in
-                if let start = line.range(of: "\"~"), let end = line.range(of: "\"", range: line.index(start.upperBound, offsetBy: 0)..<line.endIndex) {
-                    return String(line[start.upperBound..<end.lowerBound])
-                }
-                return line.components(separatedBy: " ").first ?? "Feed"
-            }
+            let labels = lines.map { extractFeedLabel(from: $0) }
             let translatedUrls = translateFeeds(urls: feedUrls, labels: labels)
             newsboatArgs += ["-u", translatedUrls, "-r"]
         }

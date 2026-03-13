@@ -1,7 +1,17 @@
 import Foundation
 
+let swissConfigDir = NSHomeDirectory() + "/.config/swiss"
+
+func extractFeedLabel(from line: String) -> String {
+    if let start = line.range(of: "\"~"),
+       let end = line.range(of: "\"", range: line.index(start.upperBound, offsetBy: 0)..<line.endIndex) {
+        return String(line[start.upperBound..<end.lowerBound])
+    }
+    return line.components(separatedBy: " ").first ?? "Feed"
+}
+
 func newsboatConfigPath() -> String {
-    let configDir = NSHomeDirectory() + "/.config/swiss"
+    let configDir = swissConfigDir
     let configPath = configDir + "/newsboat-config"
 
     let fm = FileManager.default

@@ -12,8 +12,7 @@ private let tag = "twitter"
 private let rsshubContainerName = "rsshub"
 private let rsshubImage = "diygod/rsshub"
 private let rsshubPort = "1200:1200"
-private let configDir = NSHomeDirectory() + "/.config/swiss"
-private let twitterConfigFile = NSHomeDirectory() + "/.config/swiss/twitter"
+private let twitterConfigFile = swissConfigDir + "/twitter"
 
 private func readAuthToken() -> String? {
     // 1. Environment variable
@@ -35,8 +34,10 @@ private func readAuthToken() -> String? {
 
 private func saveAuthToken(_ token: String) {
     let fm = FileManager.default
-    try? fm.createDirectory(atPath: configDir, withIntermediateDirectories: true)
+    try? fm.createDirectory(atPath: swissConfigDir, withIntermediateDirectories: true)
     try? "auth_token=\(token)\n".write(toFile: twitterConfigFile, atomically: true, encoding: .utf8)
+    // Restrict permissions to owner read/write only (0600)
+    chmod(twitterConfigFile, S_IRUSR | S_IWUSR)
 }
 
 func runTwitterCommand(args: [String]) {
@@ -236,13 +237,7 @@ private func openNewsboat(translate: Bool = false) {
     let tmpUrls: String
     if translate {
         let feedUrls = twitterLines.map { $0.components(separatedBy: " ").first ?? "" }
-        let labels = twitterLines.map { line -> String in
-            // Extract "~@username" label
-            if let start = line.range(of: "\"~"), let end = line.range(of: "\"", range: line.index(start.upperBound, offsetBy: 0)..<line.endIndex) {
-                return String(line[start.upperBound..<end.lowerBound])
-            }
-            return extractUsername(from: line)
-        }
+        let labels = twitterLines.map { extractFeedLabel(from: $0) }
         tmpUrls = translateFeeds(urls: feedUrls, labels: labels)
     } else {
         let tmpDir = NSTemporaryDirectory() + "swiss-twitter"

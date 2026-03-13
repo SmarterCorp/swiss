@@ -8,6 +8,19 @@ func translateFeeds(urls: [String], labels: [String]) -> String {
     let fm = FileManager.default
     try? fm.createDirectory(atPath: cacheDir, withIntermediateDirectories: true)
 
+    // Evict cache files older than 7 days
+    let sevenDaysAgo = Date().addingTimeInterval(-7 * 24 * 60 * 60)
+    if let cacheFiles = try? fm.contentsOfDirectory(atPath: cacheDir) {
+        for file in cacheFiles {
+            let filePath = cacheDir + "/\(file)"
+            if let attrs = try? fm.attributesOfItem(atPath: filePath),
+               let modDate = attrs[.modificationDate] as? Date,
+               modDate < sevenDaysAgo {
+                try? fm.removeItem(atPath: filePath)
+            }
+        }
+    }
+
     let tmpDir = NSTemporaryDirectory() + "swiss-translated"
     try? fm.createDirectory(atPath: tmpDir, withIntermediateDirectories: true)
 
@@ -208,7 +221,8 @@ private func cacheTranslation(original: String, translated: String) {
 
 private func removeTag(from xml: String, tag: String) -> String {
     let escapedTag = NSRegularExpression.escapedPattern(for: tag)
-    let pattern = "<\(escapedTag)[^>]*>.*?</\(escapedTag)>"
+    // Use (?![:\\w]) lookahead to prevent "content" from matching "content:encoded"
+    let pattern = "<\(escapedTag)(?![:\\w])[^>]*>.*?</\(escapedTag)>"
     guard let regex = try? NSRegularExpression(pattern: pattern, options: [.dotMatchesLineSeparators]) else {
         return xml
     }
