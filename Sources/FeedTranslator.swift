@@ -40,7 +40,7 @@ func translateFeeds(urls: [String], labels: [String]) -> String {
         let feedFile = tmpDir + "/feed-\(i).xml"
         try? translated.write(toFile: feedFile, atomically: true, encoding: .utf8)
 
-        urlsLines.append("file://\(feedFile) \"\(label)\"")
+        urlsLines.append("exec:cat \(feedFile) \"~\(label)\"")
     }
 
     fputs("Done.\n", stderr)
