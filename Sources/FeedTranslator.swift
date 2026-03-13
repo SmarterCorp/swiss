@@ -57,13 +57,9 @@ private func translateFeedXML(_ xml: String, label: String) -> String {
 
     var result = xml
 
-    // Translate <title>...</title> inside <item> or <entry> blocks
+    // Translate titles and short descriptions only (content:encoded is too large)
     result = translateTagContent(in: result, tag: "title", label: label, itemCount: itemCount, postIndex: &postIndex)
-    // Translate <description>...</description>
     result = translateTagContent(in: result, tag: "description", label: label, itemCount: itemCount, postIndex: &postIndex)
-    // Translate <content:encoded>...</content:encoded> (common in RSS)
-    result = translateTagContent(in: result, tag: "content:encoded", label: label, itemCount: itemCount, postIndex: &postIndex)
-    // Translate <summary>...</summary> (Atom feeds)
     result = translateTagContent(in: result, tag: "summary", label: label, itemCount: itemCount, postIndex: &postIndex)
 
     return result

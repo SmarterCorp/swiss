@@ -113,43 +113,61 @@ private func ensureModelPulled() {
 }
 
 func translateText(_ text: String) -> String {
-    let prompt = "Translate the following English text to Russian. Output only the translation, nothing else.\n\n\(text)"
+    // Truncate very long texts to avoid Ollama hanging
+    let maxChars = 2000
+    let input = text.count > maxChars ? String(text.prefix(maxChars)) + "..." : text
 
-    // Build JSON payload
-    let escaped = prompt
-        .replacingOccurrences(of: "\\", with: "\\\\")
-        .replacingOccurrences(of: "\"", with: "\\\"")
-        .replacingOccurrences(of: "\n", with: "\\n")
-        .replacingOccurrences(of: "\r", with: "\\r")
-        .replacingOccurrences(of: "\t", with: "\\t")
-    let json = "{\"model\":\"\(ollamaModel)\",\"prompt\":\"\(escaped)\",\"stream\":false}"
+    let prompt = "Translate the following English text to Russian. Output only the translation, nothing else.\n\n\(input)"
+
+    // Use JSONSerialization for safe escaping
+    let payload: [String: Any] = [
+        "model": ollamaModel,
+        "prompt": prompt,
+        "stream": false,
+    ]
+    guard let jsonData = try? JSONSerialization.data(withJSONObject: payload) else {
+        fputs("Error: Failed to build JSON payload.\n", stderr)
+        return text
+    }
+
+    // Write JSON to a temp file to avoid pipe deadlock
+    let tmpFile = NSTemporaryDirectory() + "swiss-translate-req.json"
+    try? jsonData.write(to: URL(fileURLWithPath: tmpFile))
 
     let process = Process()
     let outPipe = Pipe()
-    let inPipe = Pipe()
     process.executableURL = URL(fileURLWithPath: "/usr/bin/curl")
     process.arguments = [
-        "-s", "-X", "POST", ollamaAPI,
+        "-s", "--max-time", "120",
+        "-X", "POST", ollamaAPI,
         "-H", "Content-Type: application/json",
-        "-d", "@-",
+        "-d", "@\(tmpFile)",
     ]
-    process.standardInput = inPipe
     process.standardOutput = outPipe
     process.standardError = FileHandle.nullDevice
     try? process.run()
 
-    inPipe.fileHandleForWriting.write(json.data(using: .utf8)!)
-    inPipe.fileHandleForWriting.closeFile()
-    process.waitUntilExit()
+    // Read output in background to avoid pipe buffer deadlock
+    var outputData = Data()
+    let readGroup = DispatchGroup()
+    readGroup.enter()
+    DispatchQueue.global().async {
+        outputData = outPipe.fileHandleForReading.readDataToEndOfFile()
+        readGroup.leave()
+    }
 
-    let data = outPipe.fileHandleForReading.readDataToEndOfFile()
-    guard let responseJSON = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+    process.waitUntilExit()
+    readGroup.wait()
+
+    try? FileManager.default.removeItem(atPath: tmpFile)
+
+    guard let responseJSON = try? JSONSerialization.jsonObject(with: outputData) as? [String: Any],
           let response = responseJSON["response"] as? String else {
         fputs("Error: Failed to parse Ollama response.\n", stderr)
-        if let raw = String(data: data, encoding: .utf8) {
-            fputs("Raw response: \(raw)\n", stderr)
+        if let raw = String(data: outputData, encoding: .utf8), !raw.isEmpty {
+            fputs("Raw: \(String(raw.prefix(200)))\n", stderr)
         }
-        exit(1)
+        return text // Return original instead of crashing
     }
 
     return response
