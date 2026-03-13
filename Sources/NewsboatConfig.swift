@@ -16,9 +16,10 @@ func newsboatConfigPath() -> String {
         lines.append("")
     }
 
-    // Translation: press t to translate current article to Russian
+    // Translation: press t then t to translate current article to Russian
     lines.append("# swiss: translate article to Russian (press t)")
-    lines.append("bind-key t pipe-to \"swiss translate | less\" article")
+    lines.append("macro-prefix t")
+    lines.append("macro t pipe-to \"swiss translate | less\" -- \"Translate to Russian\"")
 
     let content = lines.joined(separator: "\n") + "\n"
     try? content.write(toFile: configPath, atomically: true, encoding: .utf8)
