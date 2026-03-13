@@ -12,7 +12,7 @@ jobs:
     # macOS runner with Apple Silicon — swiftc is preinstalled
     runs-on: macos-15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # Compile the binary using the project build script
       - name: Build
@@ -25,7 +25,7 @@ jobs:
       # Save the binary as a build artifact (only on main, not on PRs)
       - name: Upload binary
         if: github.ref == 'refs/heads/main'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: swiss
           path: build/swiss
