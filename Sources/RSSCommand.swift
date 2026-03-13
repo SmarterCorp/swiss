@@ -30,7 +30,7 @@ func runRSSCommand(args: [String]) {
                 return line.components(separatedBy: " ").first ?? "Feed"
             }
             let translatedUrls = translateFeeds(urls: feedUrls, labels: labels)
-            newsboatArgs += ["-u", translatedUrls]
+            newsboatArgs += ["-u", translatedUrls, "-r"]
         }
         newsboatArgs += filteredArgs
     } else {

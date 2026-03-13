@@ -40,7 +40,11 @@ func translateFeeds(urls: [String], labels: [String]) -> String {
         let feedFile = tmpDir + "/feed-\(i).xml"
         try? translated.write(toFile: feedFile, atomically: true, encoding: .utf8)
 
-        urlsLines.append("exec:cat \(feedFile) \"~\(label)\"")
+        // Newsboat exec: format — wrap in a script to avoid space/arg issues
+        let scriptFile = tmpDir + "/read-\(i).sh"
+        try? "#!/bin/sh\ncat '\(feedFile)'\n".write(toFile: scriptFile, atomically: true, encoding: .utf8)
+        chmod(scriptFile)
+        urlsLines.append("exec:\(scriptFile) \"~\(label)\"")
     }
 
     fputs("Done.\n", stderr)
@@ -182,6 +186,18 @@ private func getCached(text: String) -> String? {
 
 private func cacheTranslation(original: String, translated: String) {
     try? translated.write(toFile: cacheDir + "/\(cacheKey(for: original)).txt", atomically: true, encoding: .utf8)
+}
+
+// MARK: - Helpers
+
+private func chmod(_ path: String) {
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: "/bin/chmod")
+    process.arguments = ["+x", path]
+    process.standardOutput = FileHandle.nullDevice
+    process.standardError = FileHandle.nullDevice
+    try? process.run()
+    process.waitUntilExit()
 }
 
 // MARK: - HTML stripping
