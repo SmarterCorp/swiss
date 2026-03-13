@@ -14,7 +14,6 @@ swiftc \
     -framework CoreDisplay \
     -framework IOKit \
     -framework AppKit \
-    -lsqlite3 \
     -o "$BUILD_DIR/$APP_NAME" \
     Sources/main.swift \
     Sources/DisplayCommand.swift \
@@ -22,11 +21,6 @@ swiftc \
     Sources/CursorCommand.swift \
     Sources/TextreamCommand.swift \
     Sources/RSSCommand.swift \
-    Sources/RSSModels.swift \
-    Sources/RSSDatabase.swift \
-    Sources/RSSFeedFetcher.swift \
-    Sources/RSSOPMLParser.swift \
-    Sources/RSSTUI.swift \
     Sources/BrewDependency.swift \
     Sources/DuaCommand.swift \
     Sources/TopCommand.swift
@@ -39,6 +33,6 @@ echo "  ./$BUILD_DIR/$APP_NAME display on    — reconnect external monitors"
 echo "  ./$BUILD_DIR/$APP_NAME usb           — list USB devices"
 echo "  ./$BUILD_DIR/$APP_NAME cursor start  — start cursor teleporter"
 echo "  ./$BUILD_DIR/$APP_NAME cursor stop   — stop cursor teleporter"
-echo "  ./$BUILD_DIR/$APP_NAME rss           — launch RSS reader TUI"
+echo "  ./$BUILD_DIR/$APP_NAME rss           — RSS reader (newsboat)"
 echo "  ./$BUILD_DIR/$APP_NAME dua           — disk usage analyzer"
 echo "  ./$BUILD_DIR/$APP_NAME top           — activity monitor"

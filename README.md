@@ -10,7 +10,7 @@ bash build.sh
 
 Produces `build/swiss`. Target: `arm64-apple-macos13` (Apple Silicon).
 
-Linked frameworks: CoreGraphics, CoreDisplay, IOKit, AppKit. Also links `libsqlite3`.
+Linked frameworks: CoreGraphics, CoreDisplay, IOKit, AppKit.
 
 ## Commands
 
@@ -126,15 +126,12 @@ Opens the Textream teleprompter app via its URL scheme (`textream://`).
 
 Requires the Textream app to be installed.
 
-### `swiss rss`
+### `swiss rss [args]`
 
-Launches a terminal-based RSS reader TUI. Feeds and entries are stored in a SQLite database at `~/.swiss/rss.db`.
+Terminal RSS reader. Wraps [newsboat](https://newsboat.org/) — auto-installs via Homebrew if not present.
 
-Subcommands:
-
-- `swiss rss` — open the TUI (fetches feeds and displays entries).
-- `swiss rss import <file.opml>` — import feeds from an OPML file, then launch TUI.
-- `swiss rss add <url>` — add a single feed URL, then launch TUI.
+- `swiss rss` — launches newsboat.
+- `swiss rss <args>` — passes arguments directly to `newsboat`.
 
 ### `swiss dua [args]`
 
@@ -159,12 +156,7 @@ Sources/
   USBCommand.swift        — USB device listing (system_profiler + IOKit)
   CursorCommand.swift     — cursor teleporter daemon (CGEventTap + AppKit)
   TextreamCommand.swift   — Textream app launcher via URL scheme
-  RSSCommand.swift        — RSS command dispatcher
-  RSSModels.swift         — RSSFeed / RSSEntry data models
-  RSSDatabase.swift       — SQLite storage for feeds and entries
-  RSSFeedFetcher.swift    — HTTP feed fetching and XML parsing
-  RSSOPMLParser.swift     — OPML file parser
-  RSSTUI.swift            — Terminal UI for RSS reader
+  RSSCommand.swift        — newsboat wrapper
   BrewDependency.swift    — Auto-install Homebrew dependencies
   DuaCommand.swift        — dua-cli wrapper
   TopCommand.swift        — bottom (btm) wrapper
@@ -177,4 +169,3 @@ build.sh                  — single-file build script
 |---|---|---|
 | `~/.swiss-display-state` | `display off` | Stores disconnected display IDs (one per line) |
 | `~/.swiss-cursor.pid` | `cursor start` | Daemon PID for `cursor stop` |
-| `~/.swiss/rss.db` | `rss` | SQLite database for RSS feeds and entries |
