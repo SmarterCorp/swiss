@@ -1,0 +1,31 @@
+name: Build
+
+# Run on every push to main and on all PRs targeting main
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    # macOS runner with Apple Silicon — swiftc is preinstalled
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      # Compile the binary using the project build script
+      - name: Build
+        run: bash build.sh
+
+      # Smoke test — make sure the binary runs and prints version
+      - name: Verify binary
+        run: build/swiss version
+
+      # Save the binary as a build artifact (only on main, not on PRs)
+      - name: Upload binary
+        if: github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: swiss
+          path: build/swiss

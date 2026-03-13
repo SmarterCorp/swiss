@@ -1,0 +1,58 @@
+name: Release
+
+# Trigger when a version tag is pushed, e.g. v1.0.0
+on:
+  push:
+    tags:
+      - 'v*'
+
+# Need write access to create releases and upload assets
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      # Extract version from tag (strip the "v" prefix: v1.0.0 -> 1.0.0)
+      - name: Extract version from tag
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      # Compile the binary
+      - name: Build
+        run: bash build.sh
+
+      # Smoke test
+      - name: Verify binary
+        run: build/swiss version
+
+      # Verify that the tag matches the version in source code
+      # This prevents accidentally tagging with a wrong version
+      - name: Verify version matches source
+        run: |
+          source_version=$(build/swiss version | awk '{print $2}')
+          tag_version="${{ steps.version.outputs.version }}"
+          if [ "$source_version" != "$tag_version" ]; then
+            echo "ERROR: Tag version ($tag_version) does not match source version ($source_version)"
+            echo "Update 'let version' in Sources/main.swift before tagging."
+            exit 1
+          fi
+
+      # Package the binary into a tar.gz archive for distribution
+      # Archive name includes version, e.g. swiss-1.0.0-macos-arm64.tar.gz
+      - name: Create release archive
+        run: tar -czf "swiss-${{ steps.version.outputs.version }}-macos-arm64.tar.gz" -C build swiss
+
+      # Create a GitHub release with the archive attached
+      # --generate-notes pulls commit messages since the last tag as changelog
+      - name: Create GitHub release
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            "swiss-${{ steps.version.outputs.version }}-macos-arm64.tar.gz" \
+            --title "swiss ${{ steps.version.outputs.version }}" \
+            --generate-notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
