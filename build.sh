@@ -14,6 +14,7 @@ swiftc \
     -framework CoreDisplay \
     -framework IOKit \
     -framework AppKit \
+    -framework CoreWLAN \
     -o "$BUILD_DIR/$APP_NAME" \
     Sources/main.swift \
     Sources/DisplayCommand.swift \
@@ -23,7 +24,12 @@ swiftc \
     Sources/RSSCommand.swift \
     Sources/BrewDependency.swift \
     Sources/DuaCommand.swift \
-    Sources/TopCommand.swift
+    Sources/TopCommand.swift \
+    Sources/WiFiCommand.swift \
+    Sources/BatteryCommand.swift \
+    Sources/PortsCommand.swift \
+    Sources/TrashCommand.swift \
+    Sources/ClipboardCommand.swift
 
 echo "Build complete: $BUILD_DIR/$APP_NAME"
 
@@ -47,4 +53,9 @@ else
     echo "  $APP_NAME rss           — RSS reader (newsboat)"
     echo "  $APP_NAME dua           — disk usage analyzer"
     echo "  $APP_NAME top           — activity monitor"
+    echo "  $APP_NAME wifi          — WiFi network info"
+    echo "  $APP_NAME battery       — battery status and health"
+    echo "  $APP_NAME ports         — list open listening ports"
+    echo "  $APP_NAME trash [files] — move to Trash / show info"
+    echo "  $APP_NAME clipboard     — copy/paste via stdin/stdout"
 fi

@@ -15,6 +15,11 @@ func printUsage() {
     print("  rss [args]          — RSS reader (newsboat, auto-installs via brew)")
     print("  dua [args]          — disk usage analyzer (auto-installs via brew)")
     print("  top [args]          — activity monitor (auto-installs via brew)")
+    print("  wifi                — show WiFi network info")
+    print("  battery             — show battery status and health")
+    print("  ports               — list open listening ports")
+    print("  trash [files...]    — move files to Trash (no args: show info)")
+    print("  clipboard [copy|paste] — copy stdin / paste to stdout")
     print("")
     print("Usage: swiss <command> [args]")
 }
@@ -39,6 +44,16 @@ case "dua":
     runDuaCommand(args: Array(args.dropFirst()))
 case "top":
     runTopCommand(args: Array(args.dropFirst()))
+case "wifi":
+    runWiFiCommand()
+case "battery":
+    runBatteryCommand()
+case "ports":
+    runPortsCommand()
+case "trash":
+    runTrashCommand(args: Array(args.dropFirst()))
+case "clipboard":
+    runClipboardCommand(args: Array(args.dropFirst()))
 case "help", "-h", "--help":
     printUsage()
 default:
