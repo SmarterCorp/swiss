@@ -49,11 +49,32 @@ func runBatteryCommand() {
         timeStr = "Calculating..."
     }
 
+    let chargeEmoji: String
+    switch percent {
+    case 60...100: chargeEmoji = "🟢"
+    case 20...59:  chargeEmoji = "🟡"
+    default:       chargeEmoji = "🔴"
+    }
+
+    let healthEmoji: String
+    switch health {
+    case 80...200: healthEmoji = "🟢"
+    case 50...79:  healthEmoji = "🟡"
+    default:       healthEmoji = "🔴"
+    }
+
+    let tempEmoji: String
+    switch tempC {
+    case ...35:    tempEmoji = "🟢"
+    case 35.1...40: tempEmoji = "🟡"
+    default:       tempEmoji = "🔴"
+    }
+
     print("Battery:")
-    print("  Charge:      \(percent)%")
+    print("  Charge:      \(chargeEmoji) \(percent)%")
     print("  Status:      \(status)")
     print("  Time:        \(timeStr)")
-    print("  Health:      \(health)% (\(maxCap)/\(designCap) mAh)")
+    print("  Health:      \(healthEmoji) \(health)% (\(maxCap)/\(designCap) mAh)")
     print("  Cycles:      \(cycleCount)")
-    print("  Temperature: \(String(format: "%.1f", tempC))°C")
+    print("  Temperature: \(tempEmoji) \(String(format: "%.1f", tempC))°C")
 }
