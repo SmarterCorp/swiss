@@ -31,6 +31,8 @@ swiftc \
     Sources/TrashCommand.swift \
     Sources/ClipboardCommand.swift \
     Sources/DockerDependency.swift \
+    Sources/TranslateCommand.swift \
+    Sources/NewsboatConfig.swift \
     Sources/TwitterCommand.swift
 
 echo "Build complete: $BUILD_DIR/$APP_NAME"

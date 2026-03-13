@@ -14,6 +14,7 @@ func printUsage() {
     print("  cursor stop   — stop cursor teleporter")
     print("  textream [text|file] — open Textream teleprompter with optional text or file")
     print("  twitter [auth|add|remove|list] — read Twitter via RSS (newsboat + RSSHub)")
+    print("  translate [text|file]         — translate English to Russian (Ollama)")
     print("  rss [args]          — RSS reader (newsboat, auto-installs via brew)")
     print("  dua [args]          — disk usage analyzer (auto-installs via brew)")
     print("  top [args]          — activity monitor (auto-installs via brew)")
@@ -43,6 +44,8 @@ case "textream":
     runTextreamCommand(args: Array(args.dropFirst()))
 case "twitter":
     runTwitterCommand(args: Array(args.dropFirst()))
+case "translate":
+    runTranslateCommand(args: Array(args.dropFirst()))
 case "rss":
     runRSSCommand(args: Array(args.dropFirst()))
 case "dua":

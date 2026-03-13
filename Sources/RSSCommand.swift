@@ -13,7 +13,8 @@ func runRSSCommand(args: [String]) {
         fm.createFile(atPath: urlsFile, contents: nil)
     }
 
-    let argv = (["newsboat"] + args).map { strdup($0) } + [nil]
+    let configPath = newsboatConfigPath()
+    let argv = (["newsboat", "-C", configPath] + args).map { strdup($0) } + [nil]
     execvp("newsboat", argv)
 
     perror("Failed to exec newsboat")

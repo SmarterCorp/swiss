@@ -236,7 +236,8 @@ private func openNewsboat() {
     try? fm.createDirectory(atPath: tmpDir, withIntermediateDirectories: true)
     try? twitterLines.joined(separator: "\n").write(toFile: tmpUrls, atomically: true, encoding: .utf8)
 
-    let args: [String] = ["newsboat", "-u", tmpUrls, "-r"]
+    let configPath = newsboatConfigPath()
+    let args: [String] = ["newsboat", "-C", configPath, "-u", tmpUrls, "-r"]
     let argv = args.map { strdup($0) } + [nil]
     execvp("newsboat", argv)
 
