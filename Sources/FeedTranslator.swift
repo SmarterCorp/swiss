@@ -16,30 +16,47 @@ func translateFeeds(urls: [String], labels: [String]) -> String {
 
     for (i, url) in urls.enumerated() {
         let label = i < labels.count ? labels[i] : "Feed \(i + 1)"
-        fputs("Translating [\(i + 1)/\(total)] \(label)...\n", stderr)
+        fputs("[\(i + 1)/\(total)] \(label)... ", stderr)
 
         guard let xml = fetchURL(url) else {
-            fputs("  Failed to fetch, skipping.\n", stderr)
+            fputs("fetch failed, skipping.\n", stderr)
             continue
         }
 
-        let translated = translateFeedXML(xml, label: label)
+        let titles = extractTagTexts(from: xml, tag: "title")
+        let uncached = titles.filter { !isCached(text: $0) }
+        fputs("\(titles.count) titles, \(uncached.count) to translate\n", stderr)
+
+        // Batch translate all uncached titles in one Ollama call
+        if !uncached.isEmpty {
+            let batch = batchTranslate(texts: uncached)
+            for (original, translated) in zip(uncached, batch) {
+                cacheTranslation(original: original, translated: translated)
+            }
+        }
+
+        // Replace titles in XML with cached translations
+        let translated = replaceTagTexts(in: xml, tag: "title")
         let feedFile = tmpDir + "/feed-\(i).xml"
         try? translated.write(toFile: feedFile, atomically: true, encoding: .utf8)
 
         urlsLines.append("file://\(feedFile) \"\(label)\"")
     }
 
+    fputs("Done.\n", stderr)
+
     let urlsFile = tmpDir + "/urls"
     try? urlsLines.joined(separator: "\n").write(toFile: urlsFile, atomically: true, encoding: .utf8)
     return urlsFile
 }
 
+// MARK: - Feed fetching
+
 private func fetchURL(_ url: String) -> String? {
     let process = Process()
     let pipe = Pipe()
     process.executableURL = URL(fileURLWithPath: "/usr/bin/curl")
-    process.arguments = ["-s", "-L", "--max-time", "15", url]
+    process.arguments = ["-s", "-L", "--max-time", "15", "-A", "swiss/1.0", url]
     process.standardOutput = pipe
     process.standardError = FileHandle.nullDevice
     try? process.run()
@@ -50,29 +67,27 @@ private func fetchURL(_ url: String) -> String? {
     return String(data: data, encoding: .utf8)
 }
 
-private func translateFeedXML(_ xml: String, label: String) -> String {
-    // Count total items to translate
-    let itemCount = countItems(in: xml)
-    var postIndex = 0
+// MARK: - XML tag extraction and replacement
 
-    var result = xml
-
-    // Translate titles and short descriptions only (content:encoded is too large)
-    result = translateTagContent(in: result, tag: "title", label: label, itemCount: itemCount, postIndex: &postIndex)
-    result = translateTagContent(in: result, tag: "description", label: label, itemCount: itemCount, postIndex: &postIndex)
-    result = translateTagContent(in: result, tag: "summary", label: label, itemCount: itemCount, postIndex: &postIndex)
-
-    return result
-}
-
-private func countItems(in xml: String) -> Int {
-    let itemPattern = try? NSRegularExpression(pattern: "<(item|entry)[\\s>]", options: [])
-    return itemPattern?.numberOfMatches(in: xml, range: NSRange(xml.startIndex..., in: xml)) ?? 0
-}
-
-private func translateTagContent(in xml: String, tag: String, label: String, itemCount: Int, postIndex: inout Int) -> String {
+private func extractTagTexts(from xml: String, tag: String) -> [String] {
     let escapedTag = NSRegularExpression.escapedPattern(for: tag)
-    let pattern = "(<\(escapedTag)[^>]*>)(<\\!\\[CDATA\\[)?(.*?)(\\]\\]>)?(</\(escapedTag)>)"
+    let pattern = "<\(escapedTag)[^>]*>(?:<\\!\\[CDATA\\[)?(.*?)(?:\\]\\]>)?</\(escapedTag)>"
+
+    guard let regex = try? NSRegularExpression(pattern: pattern, options: [.dotMatchesLineSeparators]) else {
+        return []
+    }
+
+    let matches = regex.matches(in: xml, range: NSRange(xml.startIndex..., in: xml))
+    return matches.compactMap { match -> String? in
+        guard let range = Range(match.range(at: 1), in: xml) else { return nil }
+        let text = stripHTML(String(xml[range])).trimmingCharacters(in: .whitespacesAndNewlines)
+        return text.count > 3 ? text : nil
+    }
+}
+
+private func replaceTagTexts(in xml: String, tag: String) -> String {
+    let escapedTag = NSRegularExpression.escapedPattern(for: tag)
+    let pattern = "(<\(escapedTag)[^>]*>)(?:<\\!\\[CDATA\\[)?(.*?)(?:\\]\\]>)?(</\(escapedTag)>)"
 
     guard let regex = try? NSRegularExpression(pattern: pattern, options: [.dotMatchesLineSeparators]) else {
         return xml
@@ -81,39 +96,86 @@ private func translateTagContent(in xml: String, tag: String, label: String, ite
     var result = xml
     let matches = regex.matches(in: xml, range: NSRange(xml.startIndex..., in: xml))
 
-    // Process in reverse to preserve ranges
     for match in matches.reversed() {
-        guard match.numberOfRanges >= 6 else { continue }
+        guard let contentRange = Range(match.range(at: 2), in: result),
+              let fullRange = Range(match.range, in: result) else { continue }
 
-        let contentRange = match.range(at: 3)
-        guard contentRange.location != NSNotFound,
-              let swiftRange = Range(contentRange, in: result) else { continue }
+        let original = stripHTML(String(result[contentRange])).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard original.count > 3 else { continue }
 
-        let content = String(result[swiftRange])
-        let stripped = stripHTML(content).trimmingCharacters(in: .whitespacesAndNewlines)
-
-        // Skip empty, very short content
-        guard stripped.count > 5 else { continue }
-
-        // Check cache
-        let cacheKey = stableHash(stripped)
-        let cachePath = cacheDir + "/\(cacheKey).txt"
-
-        let translated: String
-        if let cached = try? String(contentsOfFile: cachePath, encoding: .utf8) {
-            translated = cached
-        } else {
-            postIndex += 1
-            fputs("  \(label): post \(postIndex)/\(itemCount) (\(tag))...\n", stderr)
-            translated = translateText(stripped)
-            try? translated.write(toFile: cachePath, atomically: true, encoding: .utf8)
+        if let translated = getCached(text: original) {
+            let openTag = String(result[Range(match.range(at: 1), in: result)!])
+            let closeTag = String(result[Range(match.range(at: 3), in: result)!])
+            result.replaceSubrange(fullRange, with: "\(openTag)\(translated)\(closeTag)")
         }
-
-        result = result.replacingCharacters(in: swiftRange, with: translated)
     }
 
     return result
 }
+
+// MARK: - Batch translation (one Ollama call for multiple titles)
+
+private func batchTranslate(texts: [String]) -> [String] {
+    let numbered = texts.enumerated().map { "\($0.offset + 1). \($0.element)" }.joined(separator: "\n")
+    let prompt = """
+        Translate each numbered line from English to Russian. Keep the numbering. Output only the translations, one per line, with the same numbers. No explanations.
+
+        \(numbered)
+        """
+
+    let response = translateText(prompt)
+
+    // Parse numbered response lines
+    var results: [String] = []
+    let lines = response.components(separatedBy: "\n").filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+
+    for i in 0..<texts.count {
+        let prefix = "\(i + 1)."
+        if let line = lines.first(where: { $0.trimmingCharacters(in: .whitespaces).hasPrefix(prefix) }) {
+            let translated = line.trimmingCharacters(in: .whitespaces)
+                .dropFirst(prefix.count)
+                .trimmingCharacters(in: .whitespaces)
+            results.append(translated)
+        } else if i < lines.count {
+            // Fallback: use line by position
+            let line = lines[i].trimmingCharacters(in: .whitespaces)
+            // Strip any numbering prefix
+            if let dotIndex = line.firstIndex(of: "."), line[line.startIndex..<dotIndex].allSatisfy({ $0.isNumber }) {
+                results.append(String(line[line.index(after: dotIndex)...]).trimmingCharacters(in: .whitespaces))
+            } else {
+                results.append(line)
+            }
+        } else {
+            results.append(texts[i]) // fallback to original
+        }
+    }
+
+    return results
+}
+
+// MARK: - Cache
+
+private func cacheKey(for text: String) -> String {
+    var hash: UInt64 = 5381
+    for byte in text.utf8 {
+        hash = ((hash &<< 5) &+ hash) &+ UInt64(byte)
+    }
+    return String(hash, radix: 16)
+}
+
+private func isCached(text: String) -> Bool {
+    FileManager.default.fileExists(atPath: cacheDir + "/\(cacheKey(for: text)).txt")
+}
+
+private func getCached(text: String) -> String? {
+    try? String(contentsOfFile: cacheDir + "/\(cacheKey(for: text)).txt", encoding: .utf8)
+}
+
+private func cacheTranslation(original: String, translated: String) {
+    try? translated.write(toFile: cacheDir + "/\(cacheKey(for: original)).txt", atomically: true, encoding: .utf8)
+}
+
+// MARK: - HTML stripping
 
 private func stripHTML(_ html: String) -> String {
     guard let regex = try? NSRegularExpression(pattern: "<[^>]+>", options: []) else {
@@ -127,13 +189,4 @@ private func stripHTML(_ html: String) -> String {
         .replacingOccurrences(of: "&quot;", with: "\"")
         .replacingOccurrences(of: "&#39;", with: "'")
         .replacingOccurrences(of: "&nbsp;", with: " ")
-}
-
-private func stableHash(_ string: String) -> String {
-    // Simple hash for cache keys
-    var hash: UInt64 = 5381
-    for byte in string.utf8 {
-        hash = ((hash &<< 5) &+ hash) &+ UInt64(byte)
-    }
-    return String(hash, radix: 16)
 }
