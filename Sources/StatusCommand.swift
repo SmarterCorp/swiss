@@ -1,40 +1,63 @@
 import Foundation
 
 func runStatusCommand() {
-    print("swiss services:")
-    print("")
-
     // Cursor teleporter
     let cursorPid = NSString("~/.swiss-cursor.pid").expandingTildeInPath
+    var cursorRunning = false
+    var cursorPidValue: Int32 = 0
     if let pidStr = try? String(contentsOfFile: cursorPid, encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines),
        let pid = Int32(pidStr), kill(pid, 0) == 0 {
-        printStatus("cursor", running: true, detail: "PID \(pid)")
-    } else {
-        printStatus("cursor", running: false)
+        cursorRunning = true
+        cursorPidValue = pid
     }
 
     // Espanso
     let espansoRunning = checkProcess("espanso", args: ["status"], expect: "running")
-    printStatus("prompt (espanso)", running: espansoRunning)
 
     // Ollama
     let ollamaRunning = checkHTTP(port: "11434")
-    printStatus("ollama", running: ollamaRunning, detail: ollamaRunning ? "localhost:11434" : nil)
 
     // Docker
     let dockerRunning = checkCommand("/usr/bin/env", args: ["docker", "info"])
-    printStatus("docker", running: dockerRunning)
 
     // RSSHub container
+    let rsshubRunning = dockerRunning ? checkDockerContainer("rsshub") : false
+
+    // Pipit
+    let pipitRunning = checkCommand("/usr/bin/pgrep", args: ["-x", "Pipit"])
+
+    if jsonMode {
+        let services: [[String: Any]] = [
+            ["name": "cursor", "running": cursorRunning],
+            ["name": "espanso", "running": espansoRunning],
+            ["name": "ollama", "running": ollamaRunning],
+            ["name": "docker", "running": dockerRunning],
+            ["name": "rsshub", "running": rsshubRunning],
+            ["name": "pipit", "running": pipitRunning],
+        ]
+        printJSON(["services": services])
+        return
+    }
+
+    print("swiss services:")
+    print("")
+
+    if cursorRunning {
+        printStatus("cursor", running: true, detail: "PID \(cursorPidValue)")
+    } else {
+        printStatus("cursor", running: false)
+    }
+
+    printStatus("prompt (espanso)", running: espansoRunning)
+    printStatus("ollama", running: ollamaRunning, detail: ollamaRunning ? "localhost:11434" : nil)
+    printStatus("docker", running: dockerRunning)
+
     if dockerRunning {
-        let rsshubRunning = checkDockerContainer("rsshub")
         printStatus("rsshub", running: rsshubRunning, detail: rsshubRunning ? "localhost:1200" : nil)
     } else {
         printStatus("rsshub", running: false, detail: "docker not running")
     }
 
-    // Pipit
-    let pipitRunning = checkCommand("/usr/bin/pgrep", args: ["-x", "Pipit"])
     printStatus("voice (pipit)", running: pipitRunning)
 }
 

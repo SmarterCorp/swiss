@@ -147,13 +147,6 @@ private func sleepStatus() {
 
     let sleepDisabled = output.contains("disablesleep\t\t1") || output.contains("disablesleep             1")
 
-    if sleepDisabled {
-        print("Sleep: DISABLED (mac stays awake with lid closed)")
-        print("  Run 'swiss sleep on' to re-enable")
-    } else {
-        print("Sleep: enabled (normal behavior)")
-    }
-
     // Check caffeinate processes
     let pgrep = Process()
     let pgrepPipe = Pipe()
@@ -174,9 +167,22 @@ private func sleepStatus() {
     pgrepGroup.wait()
 
     let pgrepOutput = String(data: pgrepData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-    if !pgrepOutput.isEmpty {
-        let count = pgrepOutput.components(separatedBy: "\n").count
-        print("Caffeinate: \(count) process(es) active")
+    let caffeinateCount = pgrepOutput.isEmpty ? 0 : pgrepOutput.components(separatedBy: "\n").count
+
+    if jsonMode {
+        printJSON(["sleep_disabled": sleepDisabled, "caffeinate_processes": caffeinateCount])
+        return
+    }
+
+    if sleepDisabled {
+        print("Sleep: DISABLED (mac stays awake with lid closed)")
+        print("  Run 'swiss sleep on' to re-enable")
+    } else {
+        print("Sleep: enabled (normal behavior)")
+    }
+
+    if caffeinateCount > 0 {
+        print("Caffeinate: \(caffeinateCount) process(es) active")
     }
 }
 

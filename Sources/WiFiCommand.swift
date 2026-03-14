@@ -34,6 +34,28 @@ func runWiFiCommand() {
     let txRate = iface.transmitRate()
     let ip = getLocalIP()
 
+    let channelNumber = channel?.channelNumber ?? 0
+    let channelBand: String
+    if let ch = channel {
+        channelBand = ch.channelBand == .band5GHz ? "5 GHz" : ch.channelBand == .band6GHz ? "6 GHz" : "2.4 GHz"
+    } else {
+        channelBand = "unknown"
+    }
+
+    if jsonMode {
+        printJSON([
+            "ssid": ssid,
+            "bssid": bssid,
+            "rssi": rssi,
+            "noise": noise,
+            "channel": channelNumber,
+            "channel_band": channelBand,
+            "tx_rate": txRate,
+            "ip": ip,
+        ])
+        return
+    }
+
     let signalQuality: String
     switch rssi {
     case -30...0:    signalQuality = "Excellent"

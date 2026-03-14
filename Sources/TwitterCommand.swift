@@ -218,12 +218,19 @@ private func removeAccount(_ username: String) {
 
 private func listAccounts() {
     let lines = readLines().filter { $0.contains(" \(tag)") && isTwitterLine($0) }
+    let usernames = lines.map { extractUsername(from: $0) }
+
+    if jsonMode {
+        printJSON(["accounts": usernames.map { "@\($0)" }])
+        return
+    }
+
     if lines.isEmpty {
         print("No twitter accounts. Add one with: swiss twitter add <username>")
         return
     }
-    for line in lines {
-        print("@\(extractUsername(from: line))")
+    for username in usernames {
+        print("@\(username)")
     }
 }
 

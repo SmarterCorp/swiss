@@ -161,6 +161,16 @@ private func listMenuBarItems() {
         return posA < posB
     }
 
+    if jsonMode {
+        let jsonItems = items.map { item -> [String: Any] in
+            var dict: [String: Any] = ["name": item.name, "visible": item.visible]
+            if let pos = item.position { dict["position"] = pos }
+            return dict
+        }
+        printJSON(["items": jsonItems])
+        return
+    }
+
     if items.isEmpty {
         print("No menu bar items found.")
         return

@@ -230,10 +230,36 @@ private func printDevice(_ device: USBDevice, prefix: String, indent: String, is
 
 // MARK: - Command entry point
 
+private func flattenDevices(_ devices: [USBDevice]) -> [[String: Any]] {
+    var result: [[String: Any]] = []
+    for device in devices {
+        var dict: [String: Any] = [
+            "name": device.name,
+            "vendor_name": device.vendorName,
+            "vendor_id": device.vendorID,
+            "product_id": device.productID,
+            "serial_number": device.serialNumber,
+            "speed": device.speed,
+            "location_id": device.locationID,
+            "max_power": device.maxPower,
+        ]
+        if !device.children.isEmpty {
+            dict["children"] = flattenDevices(device.children)
+        }
+        result.append(dict)
+    }
+    return result
+}
+
 func runUSBCommand() {
     var devices = getDevicesFromSystemProfiler()
     if devices.isEmpty {
         devices = getDevicesFromIOKit()
+    }
+
+    if jsonMode {
+        printJSON(["devices": flattenDevices(devices)])
+        return
     }
 
     if devices.isEmpty {

@@ -130,6 +130,11 @@ private func runCleanup(force: Bool, dryRun: Bool) {
     print("")
 
     if dryRun {
+        if jsonMode {
+            let jsonResults = results.map { ["name": $0.name, "size_bytes": $0.size] as [String: Any] }
+            printJSON(["results": jsonResults, "total_bytes": totalSize])
+            return
+        }
         print("(dry run — nothing deleted)")
         return
     }
