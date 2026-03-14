@@ -167,6 +167,15 @@ private func listPrompts() {
 // MARK: - Espanso daemon control
 
 private func startEspanso() {
+    // Register service if not yet registered
+    let register = Process()
+    register.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+    register.arguments = ["espanso", "service", "register"]
+    register.standardOutput = FileHandle.nullDevice
+    register.standardError = FileHandle.nullDevice
+    try? register.run()
+    register.waitUntilExit()
+
     let process = Process()
     process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
     process.arguments = ["espanso", "start"]
