@@ -121,7 +121,7 @@ swiss usb               # list USB devices + power adapter info
 swiss usb --json        # JSON output
 ```
 
-Shows connected USB devices and, when a charger is connected, detailed power adapter info: rated/live wattage, USB PD version, voltage/current profiles, vendor, serial.
+Shows connected USB devices and, when a charger is connected, power adapter info with live wattage.
 
 ```
 $ swiss usb
@@ -129,12 +129,7 @@ Power Adapter:
 
   61W USB-C Power Adapter
   Power: 60 W (20 V up to 3 A)
-  Live Power: 17.1 W (20.3 V at 0.84 A)
-  Version: USB PD 2.0
-  Vendor: Apple Inc.
-  Product: 0x1685
-  Serial: C0614520AFVPM0RA1
-  PD Profiles: 5V/3A, 9V/3A, 15V/3A, 20V/3A
+  Live Power: 15.7 W (20.3 V at 0.77 A)
 ```
 
 ### System Cleanup & App Uninstall

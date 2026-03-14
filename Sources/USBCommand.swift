@@ -288,20 +288,6 @@ private func printPowerAdapter(_ adapter: PowerAdapter) {
     let liveStr = String(format: "%.1f W (%.1f V at %.2f A)",
                          adapter.liveWatts, adapter.liveVoltage, adapter.liveCurrent)
     print("  Live Power: \(liveStr)")
-
-    if !adapter.pdVersion.isEmpty {
-        print("  Version: \(adapter.pdVersion)")
-    }
-    if !adapter.vendor.isEmpty { print("  Vendor: \(adapter.vendor)") }
-    if !adapter.productID.isEmpty { print("  Product: \(adapter.productID)") }
-    if !adapter.serialNumber.isEmpty { print("  Serial: \(adapter.serialNumber)") }
-
-    if !adapter.pdProfiles.isEmpty {
-        let profileStrs = adapter.pdProfiles.map { p in
-            "\(p.voltage / 1000)V/\(p.current / 1000)A"
-        }
-        print("  PD Profiles: \(profileStrs.joined(separator: ", "))")
-    }
     print("")
 }
 
