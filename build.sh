@@ -36,6 +36,7 @@ swiftc \
     Sources/NewsboatConfig.swift \
     Sources/VoiceCommand.swift \
     Sources/PromptCommand.swift \
+    Sources/StatusCommand.swift \
     Sources/TwitterCommand.swift
 
 echo "Build complete: $BUILD_DIR/$APP_NAME"

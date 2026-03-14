@@ -25,6 +25,7 @@ func printUsage() {
     print("  ports               — list open listening ports")
     print("  trash [files...]    — move files to Trash (no args: show info)")
     print("  clipboard [copy|paste] — copy stdin / paste to stdout")
+    print("  status              — show all services status")
     print("  version             — print version")
     print("")
     print("Usage: swiss <command> [args]")
@@ -68,6 +69,8 @@ case "trash":
     runTrashCommand(args: Array(args.dropFirst()))
 case "clipboard":
     runClipboardCommand(args: Array(args.dropFirst()))
+case "status":
+    runStatusCommand()
 case "version", "-v", "--version":
     print("swiss \(version)")
 case "help", "-h", "--help":
