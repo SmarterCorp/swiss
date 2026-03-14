@@ -25,15 +25,7 @@ private func isDockerRunning(docker: String) -> Bool {
 }
 
 private func installDocker() {
-    var brewPath: String?
-    for candidate in ["/opt/homebrew/bin/brew", "/usr/local/bin/brew"] {
-        if FileManager.default.isExecutableFile(atPath: candidate) {
-            brewPath = candidate
-            break
-        }
-    }
-
-    guard let brew = brewPath else {
+    guard let brew = findBrewPath() else {
         fputs("Error: Docker is not installed and Homebrew was not found.\n", stderr)
         fputs("Install Docker Desktop: https://docs.docker.com/desktop/install/mac-install/\n", stderr)
         fputs("Or install Homebrew (https://brew.sh) and re-run this command.\n", stderr)

@@ -17,6 +17,7 @@ func printUsage() {
     print("  translate [text|file]         — translate English to Russian (Ollama)")
     print("  voice                        — launch Pipit voice dictation (auto-installs)")
     print("  prompt [add|remove|list]     — manage text expansions (Espanso)")
+    print("  pass [get|search|login]     — 1Password CLI")
     print("  rss [args]          — RSS reader (newsboat, auto-installs via brew)")
     print("  dua [args]          — disk usage analyzer (auto-installs via brew)")
     print("  top [args]          — activity monitor (auto-installs via brew)")
@@ -55,6 +56,8 @@ case "voice":
     runVoiceCommand()
 case "prompt":
     runPromptCommand(args: Array(args.dropFirst()))
+case "pass":
+    runPassCommand(args: Array(args.dropFirst()))
 case "rss":
     runRSSCommand(args: Array(args.dropFirst()))
 case "dua":

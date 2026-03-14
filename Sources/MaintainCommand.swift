@@ -1,7 +1,7 @@
 import Foundation
 
 private let brewPackages = ["newsboat", "ollama", "dua-cli", "bottom"]
-private let brewCasks = ["docker", "espanso"]
+private let brewCasks = ["docker", "espanso", "1password-cli"]
 private let ollamaModel = "gemma3"
 private let rsshubImage = "diygod/rsshub"
 private let rsshubContainer = "rsshub"
@@ -65,12 +65,7 @@ private func printStep(_ step: Int, _ total: Int, _ message: String) {
 }
 
 private func findBrew() -> String? {
-    for candidate in ["/opt/homebrew/bin/brew", "/usr/local/bin/brew"] {
-        if FileManager.default.isExecutableFile(atPath: candidate) {
-            return candidate
-        }
-    }
-    return nil
+    findBrewPath()
 }
 
 private func runVisible(_ path: String, args: [String]) {
