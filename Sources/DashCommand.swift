@@ -94,6 +94,12 @@ private func dashSystem() -> [String] {
         lines.append(dashRow("Disk", "\(freeGB) GB free / \(totalGB) GB"))
     }
 
+    // Sleep
+    if let pmOutput = dashCapture("/usr/bin/pmset", args: ["-g"]) {
+        let sleepDisabled = pmOutput.contains("disablesleep\t\t1") || pmOutput.contains("disablesleep             1")
+        lines.append(dashRow("Sleep", sleepDisabled ? "DISABLED (awake)" : "enabled"))
+    }
+
     return lines
 }
 
