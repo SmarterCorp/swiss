@@ -19,6 +19,7 @@ func printUsage() {
     print("  prompt [add|remove|list]     — manage text expansions (Espanso)")
     print("  pass [get|search|login]     — 1Password CLI")
     print("  menubar [list|show|hide]    — manage menu bar icons")
+    print("  clean [--dry-run|uninstall] — system cleanup (mac-cleanup)")
     print("  rss [args]          — RSS reader (newsboat, auto-installs via brew)")
     print("  dua [args]          — disk usage analyzer (auto-installs via brew)")
     print("  top [args]          — activity monitor (auto-installs via brew)")
@@ -61,6 +62,8 @@ case "pass":
     runPassCommand(args: Array(args.dropFirst()))
 case "menubar":
     runMenuBarCommand(args: Array(args.dropFirst()))
+case "clean":
+    runCleanCommand(args: Array(args.dropFirst()))
 case "rss":
     runRSSCommand(args: Array(args.dropFirst()))
 case "dua":
