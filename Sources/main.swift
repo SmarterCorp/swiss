@@ -1,6 +1,6 @@
 import Foundation
 
-let version = "1.4.0"
+let version = "1.5.0"
 let jsonMode = CommandLine.arguments.contains("--json")
 let args = Array(CommandLine.arguments.dropFirst().filter { $0 != "--json" })
 
