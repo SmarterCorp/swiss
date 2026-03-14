@@ -35,34 +35,77 @@ private func printSleepUsage() {
 }
 
 private func disableSleep() {
-    let process = Process()
-    process.executableURL = URL(fileURLWithPath: "/usr/bin/sudo")
-    process.arguments = ["pmset", "disablesleep", "1"]
-    try? process.run()
-    process.waitUntilExit()
-
-    if process.terminationStatus == 0 {
-        print("Sleep disabled. Mac will stay awake with lid closed.")
-        print("Run 'swiss sleep on' to re-enable.")
-    } else {
-        fputs("Error: Failed to disable sleep (needs sudo).\n", stderr)
-        exit(1)
-    }
+    runSudo(["pmset", "disablesleep", "1"])
+    print("Sleep disabled. Mac will stay awake with lid closed.")
+    print("Run 'swiss sleep on' to re-enable.")
 }
 
 private func enableSleep() {
-    let process = Process()
-    process.executableURL = URL(fileURLWithPath: "/usr/bin/sudo")
-    process.arguments = ["pmset", "disablesleep", "0"]
-    try? process.run()
-    process.waitUntilExit()
+    runSudo(["pmset", "disablesleep", "0"])
+    print("Sleep enabled. Normal behavior restored.")
+}
 
-    if process.terminationStatus == 0 {
-        print("Sleep enabled. Normal behavior restored.")
+private func runSudo(_ command: [String]) {
+    // Check if we already have sudo cached
+    let check = Process()
+    check.executableURL = URL(fileURLWithPath: "/usr/bin/sudo")
+    check.arguments = ["-n", "true"]
+    check.standardOutput = FileHandle.nullDevice
+    check.standardError = FileHandle.nullDevice
+    try? check.run()
+    check.waitUntilExit()
+
+    if check.terminationStatus != 0 {
+        // Need password — read it securely
+        fputs("Password: ", stderr)
+        let password = readPassword()
+
+        let process = Process()
+        let inPipe = Pipe()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/sudo")
+        process.arguments = ["-S"] + command
+        process.standardInput = inPipe
+        process.standardError = FileHandle.nullDevice
+        try? process.run()
+
+        inPipe.fileHandleForWriting.write((password + "\n").data(using: .utf8)!)
+        inPipe.fileHandleForWriting.closeFile()
+        process.waitUntilExit()
+
+        if process.terminationStatus != 0 {
+            fputs("\nError: Wrong password or insufficient privileges.\n", stderr)
+            exit(1)
+        }
     } else {
-        fputs("Error: Failed to enable sleep (needs sudo).\n", stderr)
-        exit(1)
+        // Sudo cached — just run
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/sudo")
+        process.arguments = command
+        try? process.run()
+        process.waitUntilExit()
+
+        if process.terminationStatus != 0 {
+            fputs("Error: Command failed.\n", stderr)
+            exit(1)
+        }
     }
+}
+
+private func readPassword() -> String {
+    // Disable terminal echo for secure password input
+    var oldTermios = termios()
+    tcgetattr(STDIN_FILENO, &oldTermios)
+    var newTermios = oldTermios
+    newTermios.c_lflag &= ~UInt(ECHO)
+    tcsetattr(STDIN_FILENO, TCSANOW, &newTermios)
+
+    let password = readLine() ?? ""
+
+    // Restore terminal echo
+    tcsetattr(STDIN_FILENO, TCSANOW, &oldTermios)
+    fputs("\n", stderr)
+
+    return password
 }
 
 private func sleepStatus() {
