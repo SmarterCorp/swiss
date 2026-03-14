@@ -5,6 +5,15 @@ struct BrewDependency {
     let binary: String   // binary to check, e.g. "dua"
 }
 
+func findBrewPath() -> String? {
+    for candidate in ["/opt/homebrew/bin/brew", "/usr/local/bin/brew"] {
+        if FileManager.default.isExecutableFile(atPath: candidate) {
+            return candidate
+        }
+    }
+    return nil
+}
+
 func ensureBrewDependencies(_ deps: [BrewDependency]) {
     for dep in deps {
         // Check if binary exists
@@ -21,15 +30,7 @@ func ensureBrewDependencies(_ deps: [BrewDependency]) {
         }
 
         // Binary missing — find brew
-        var brewPath: String?
-        for candidate in ["/opt/homebrew/bin/brew", "/usr/local/bin/brew"] {
-            if FileManager.default.isExecutableFile(atPath: candidate) {
-                brewPath = candidate
-                break
-            }
-        }
-
-        guard let brew = brewPath else {
+        guard let brew = findBrewPath() else {
             fputs("Error: '\(dep.binary)' is not installed and Homebrew was not found.\n", stderr)
             fputs("Install Homebrew: https://brew.sh\n", stderr)
             fputs("Then run: brew install \(dep.package)\n", stderr)

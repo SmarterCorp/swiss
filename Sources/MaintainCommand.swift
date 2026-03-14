@@ -65,12 +65,7 @@ private func printStep(_ step: Int, _ total: Int, _ message: String) {
 }
 
 private func findBrew() -> String? {
-    for candidate in ["/opt/homebrew/bin/brew", "/usr/local/bin/brew"] {
-        if FileManager.default.isExecutableFile(atPath: candidate) {
-            return candidate
-        }
-    }
-    return nil
+    findBrewPath()
 }
 
 private func runVisible(_ path: String, args: [String]) {

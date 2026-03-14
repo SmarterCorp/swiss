@@ -5,7 +5,6 @@ func runPassCommand(args: [String]) {
 
     guard let action = args.first else {
         execOp(["item", "list"])
-        return
     }
 
     switch action {
@@ -34,7 +33,7 @@ func runPassCommand(args: [String]) {
     }
 }
 
-private func execOp(_ args: [String]) {
+private func execOp(_ args: [String]) -> Never {
     let argv = (["op"] + args).map { strdup($0) } + [nil]
     execvp("op", argv)
     perror("Failed to exec op")
@@ -59,15 +58,7 @@ private func ensureOpInstalled() {
         }
     }
 
-    var brewPath: String?
-    for candidate in ["/opt/homebrew/bin/brew", "/usr/local/bin/brew"] {
-        if FileManager.default.isExecutableFile(atPath: candidate) {
-            brewPath = candidate
-            break
-        }
-    }
-
-    guard let brew = brewPath else {
+    guard let brew = findBrewPath() else {
         fputs("Error: 1Password CLI is not installed and Homebrew was not found.\n", stderr)
         fputs("Install: brew install --cask 1password-cli\n", stderr)
         exit(1)
