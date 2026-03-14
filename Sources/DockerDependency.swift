@@ -148,8 +148,16 @@ func ensureContainer(docker: String, name: String, image: String, ports: String,
     // Container doesn't exist — create and run
     fputs("Pulling and starting \(image)...\n", stderr)
     var args = ["run", "-d", "--name", name, "-p", ports, "--restart", "unless-stopped"]
-    for (key, value) in envVars {
-        args += ["-e", "\(key)=\(value)"]
+
+    // Use --env-file to avoid exposing secrets in process args (ps aux)
+    var envFile: String? = nil
+    if !envVars.isEmpty {
+        let path = NSTemporaryDirectory() + "swiss-docker-env-\(ProcessInfo.processInfo.globallyUniqueString)"
+        let content = envVars.map { "\($0.key)=\($0.value)" }.joined(separator: "\n")
+        try? content.write(toFile: path, atomically: true, encoding: .utf8)
+        chmod(path, S_IRUSR | S_IWUSR)
+        args += ["--env-file", path]
+        envFile = path
     }
     args.append(image)
 
@@ -158,6 +166,11 @@ func ensureContainer(docker: String, name: String, image: String, ports: String,
     run.arguments = args
     try? run.run()
     run.waitUntilExit()
+
+    // Clean up env file
+    if let envFile = envFile {
+        try? FileManager.default.removeItem(atPath: envFile)
+    }
 
     if run.terminationStatus != 0 {
         fputs("Error: Failed to start \(name) container.\n", stderr)

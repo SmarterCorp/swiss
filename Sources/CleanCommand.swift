@@ -178,13 +178,15 @@ private func runCleanup(force: Bool, dryRun: Bool) {
 // MARK: - App Uninstall
 
 private func uninstallApp(_ appName: String) {
+    // Sanitize: strip path separators to prevent traversal
+    let sanitized = appName.components(separatedBy: "/").last ?? appName
     let fm = FileManager.default
     let appPath: String
 
-    if appName.hasSuffix(".app") {
-        appPath = appName
+    if sanitized.hasSuffix(".app") {
+        appPath = "/Applications/\(sanitized)"
     } else {
-        appPath = "/Applications/\(appName).app"
+        appPath = "/Applications/\(sanitized).app"
     }
 
     guard fm.fileExists(atPath: appPath) else {

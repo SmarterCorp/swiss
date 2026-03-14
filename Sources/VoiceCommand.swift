@@ -94,7 +94,24 @@ private func installPipit() {
 
     detach(volumePath)
     try? FileManager.default.removeItem(atPath: tmpDmg)
-    fputs("\(appName) installed.\n", stderr)
+
+    // Verify code signature
+    let verify = Process()
+    verify.executableURL = URL(fileURLWithPath: "/usr/bin/codesign")
+    verify.arguments = ["--verify", "--deep", "--strict", appPath]
+    verify.standardOutput = FileHandle.nullDevice
+    verify.standardError = FileHandle.nullDevice
+    try? verify.run()
+    verify.waitUntilExit()
+
+    if verify.terminationStatus != 0 {
+        fputs("Warning: \(appName).app failed code signature verification.\n", stderr)
+        try? FileManager.default.removeItem(atPath: appPath)
+        fputs("Removed unsigned app for safety.\n", stderr)
+        exit(1)
+    }
+
+    fputs("\(appName) installed (signature verified).\n", stderr)
 }
 
 private func configurePipit() {

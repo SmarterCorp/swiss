@@ -198,5 +198,13 @@ private func installPipitUpdate(from url: String) {
     _ = runSilent("/usr/bin/hdiutil", args: ["detach", volumePath, "-quiet"])
     try? fm.removeItem(atPath: tmpDmg)
 
-    print("  Pipit updated.")
+    // Verify code signature
+    if !runSilent("/usr/bin/codesign", args: ["--verify", "--deep", "--strict", destApp]) {
+        fputs("  Warning: Updated app failed code signature verification.\n", stderr)
+        try? fm.removeItem(atPath: destApp)
+        fputs("  Removed unsigned app for safety.\n", stderr)
+        return
+    }
+
+    print("  Pipit updated (signature verified).")
 }
