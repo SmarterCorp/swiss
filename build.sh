@@ -38,6 +38,7 @@ swiftc \
     Sources/PromptCommand.swift \
     Sources/StatusCommand.swift \
     Sources/MaintainCommand.swift \
+    Sources/DashCommand.swift \
     Sources/TwitterCommand.swift
 
 echo "Build complete: $BUILD_DIR/$APP_NAME"
