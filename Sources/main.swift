@@ -27,6 +27,7 @@ func printUsage() {
     print("  clipboard [copy|paste] — copy stdin / paste to stdout")
     print("  status              — show all services status")
     print("  maintain            — update all tools and services")
+    print("  dash                — system dashboard")
     print("  version             — print version")
     print("")
     print("Usage: swiss <command> [args]")
@@ -74,6 +75,8 @@ case "status":
     runStatusCommand()
 case "maintain":
     runMaintainCommand()
+case "dash":
+    runDashCommand()
 case "version", "-v", "--version":
     print("swiss \(version)")
 case "help", "-h", "--help":
