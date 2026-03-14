@@ -152,6 +152,13 @@ private func removePrompt(trigger: String) {
 
 private func listPrompts() {
     let matches = readMatches()
+
+    if jsonMode {
+        let prompts = matches.map { ["trigger": $0.trigger, "replace": $0.replace] }
+        printJSON(["prompts": prompts])
+        return
+    }
+
     if matches.isEmpty {
         print("No prompts configured. Add one with: swiss prompt add :trigger text")
         return

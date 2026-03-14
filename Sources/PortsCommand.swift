@@ -54,12 +54,18 @@ func runPortsCommand() {
         }
     }
 
+    entries.sort { (Int($0.port) ?? 0) < (Int($1.port) ?? 0) }
+
+    if jsonMode {
+        let ports = entries.map { ["port": Int($0.port) ?? 0, "pid": Int($0.pid) ?? 0, "process": $0.process] as [String: Any] }
+        printJSON(["ports": ports])
+        return
+    }
+
     guard !entries.isEmpty else {
         print("No listening ports found.")
         return
     }
-
-    entries.sort { (Int($0.port) ?? 0) < (Int($1.port) ?? 0) }
 
     let portW = max(5, entries.map { $0.port.count }.max() ?? 5)
     let pidW = max(5, entries.map { $0.pid.count }.max() ?? 5)

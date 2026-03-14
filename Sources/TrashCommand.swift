@@ -13,10 +13,19 @@ private func trashInfo() {
             totalSize += Int64(values.totalFileAllocatedSize ?? 0)
         }
 
+        if jsonMode {
+            printJSON(["items": items.count, "size_bytes": totalSize])
+            return
+        }
+
         let formatter = ByteCountFormatter()
         formatter.countStyle = .file
         print("Trash: \(items.count) items (\(formatter.string(fromByteCount: totalSize)))")
     } catch {
+        if jsonMode {
+            printJSON(["items": 0, "size_bytes": 0, "error": error.localizedDescription])
+            return
+        }
         print("Failed to read Trash: \(error.localizedDescription)")
     }
 }

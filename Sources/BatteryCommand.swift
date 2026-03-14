@@ -61,6 +61,24 @@ func runBatteryCommand() {
         return "🟥"
     }
 
+    if jsonMode {
+        printJSON([
+            "percent": percent,
+            "status": status,
+            "health": health,
+            "cycle_count": cycleCount,
+            "temperature_c": tempC,
+            "current_capacity_mah": currentCap,
+            "max_capacity_mah": maxCap,
+            "design_capacity_mah": designCap,
+            "is_charging": isCharging,
+            "external_connected": externalConnected,
+            "time_to_empty_min": timeToEmpty,
+            "time_to_full_min": timeToFull,
+        ])
+        return
+    }
+
     let w = 13 // label column width
     let pad = "  " // square column placeholder (2 chars to match emoji width)
     print("Battery:")

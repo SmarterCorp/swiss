@@ -6,6 +6,91 @@ import CoreGraphics
 private let boxWidth = 56
 
 func runDashCommand() {
+    if jsonMode {
+        var result: [String: Any] = [:]
+
+        // System
+        var system: [String: Any] = [:]
+        let snapshot = IOPSCopyPowerSourcesInfo().takeRetainedValue()
+        let sources = IOPSCopyPowerSourcesList(snapshot).takeRetainedValue() as Array
+        if let source = sources.first {
+            let desc = IOPSGetPowerSourceDescription(snapshot, source).takeUnretainedValue() as! [String: Any]
+            let capacity = desc[kIOPSCurrentCapacityKey] as? Int ?? 0
+            let maxCap = desc[kIOPSMaxCapacityKey] as? Int ?? 100
+            let pct = maxCap > 0 ? capacity * 100 / maxCap : 0
+            let charging = (desc[kIOPSIsChargingKey] as? Bool) == true
+            system["battery_percent"] = pct
+            system["battery_charging"] = charging
+        }
+
+        let ssid = CWWiFiClient.shared().interface()?.ssid()
+        system["network_ssid"] = ssid ?? "unknown"
+
+        var displayCount: UInt32 = 0
+        CGGetOnlineDisplayList(10, nil, &displayCount)
+        system["external_displays"] = displayCount > 1 ? Int(displayCount) - 1 : 0
+
+        let fm = FileManager.default
+        if let trashURL = fm.urls(for: .trashDirectory, in: .userDomainMask).first,
+           let items = try? fm.contentsOfDirectory(atPath: trashURL.path) {
+            system["trash_items"] = items.filter { !$0.hasPrefix(".") }.count
+        }
+        if let attrs = try? fm.attributesOfFileSystem(forPath: "/"),
+           let free = attrs[.systemFreeSize] as? Int64,
+           let total = attrs[.systemSize] as? Int64 {
+            system["disk_free_bytes"] = free
+            system["disk_total_bytes"] = total
+        }
+        if let pmOutput = dashCapture("/usr/bin/pmset", args: ["-g"]) {
+            system["sleep_disabled"] = pmOutput.contains("disablesleep\t\t1") || pmOutput.contains("disablesleep             1")
+        }
+        result["system"] = system
+
+        // Services
+        let services: [[String: Any]] = [
+            ["name": "espanso", "running": dashCheckProcess("espanso", args: ["status"], expect: "running")],
+            ["name": "ollama", "running": dashCheckHTTP(port: "11434")],
+            ["name": "docker", "running": dashCheckSilent("/usr/bin/env", args: ["docker", "info"])],
+            ["name": "cursor", "running": dashCheckPID(NSString("~/.swiss-cursor.pid").expandingTildeInPath)],
+            ["name": "rsshub", "running": dashCheckContainer("rsshub")],
+            ["name": "pipit", "running": dashCheckSilent("/usr/bin/pgrep", args: ["-x", "Pipit"])],
+        ]
+        result["services"] = services
+
+        // Feeds
+        var feeds: [String: Any] = [:]
+        let urlsFile = NSHomeDirectory() + "/.newsboat/urls"
+        if let content = try? String(contentsOfFile: urlsFile, encoding: .utf8) {
+            let feedLines = content.components(separatedBy: "\n").filter { !$0.isEmpty && !$0.hasPrefix("#") }
+            let twitterFeeds = feedLines.filter { $0.contains("twitter") || $0.contains("rsshub") }
+            feeds["rss_count"] = feedLines.count - twitterFeeds.count
+            feeds["twitter_count"] = twitterFeeds.count
+        }
+        let swissYml = NSHomeDirectory() + "/Library/Application Support/espanso/match/swiss.yml"
+        if let content = try? String(contentsOfFile: swissYml, encoding: .utf8) {
+            feeds["prompts_count"] = content.components(separatedBy: "- trigger:").count - 1
+        } else {
+            feeds["prompts_count"] = 0
+        }
+        result["feeds"] = feeds
+
+        // Network
+        var network: [String: Any] = [:]
+        if let ip = dashCapture("/usr/sbin/ipconfig", args: ["getifaddr", "en0"]) {
+            network["ip"] = ip
+        }
+        if let output = dashCapture("/usr/sbin/lsof", args: ["-iTCP", "-sTCP:LISTEN", "-nP", "-Fn"]) {
+            let ports = Set(output.components(separatedBy: "\n")
+                .filter { $0.hasPrefix("n") && $0.contains(":") }
+                .compactMap { $0.components(separatedBy: ":").last })
+            network["listening_ports"] = ports.compactMap { Int($0) }.sorted()
+        }
+        result["network"] = network
+
+        printJSON(result)
+        return
+    }
+
     printBox("System", dashSystem())
     printBox("Services", dashServices())
     printBox("Feeds", dashFeeds())

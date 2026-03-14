@@ -1,29 +1,59 @@
 import Foundation
 
-private let cleanTargets: [(name: String, paths: [String])] = [
-    ("System caches", ["~/Library/Caches/*"]),
-    ("System logs", ["~/Library/Logs/*"]),
-    ("User temp files", ["/tmp/*"]),
-    ("Xcode DerivedData", ["~/Library/Developer/Xcode/DerivedData/*"]),
-    ("Xcode Archives", ["~/Library/Developer/Xcode/Archives/*"]),
-    ("Xcode device support", ["~/Library/Developer/Xcode/iOS DeviceSupport/*"]),
-    ("Homebrew cache", ["~/Library/Caches/Homebrew/*"]),
-    ("npm cache", ["~/.npm/_cacache/*"]),
-    ("yarn cache", ["~/Library/Caches/Yarn/*"]),
-    ("pip cache", ["~/Library/Caches/pip/*"]),
-    ("Docker unused", []),  // special: handled via docker system prune
-    ("Trash", []),          // special: handled via Finder API
-    (".DS_Store files", []),  // special: find and delete
+private enum CleanRisk: Int, Comparable {
+    case safe = 0        // auto-regenerated, no data loss
+    case moderate = 1    // useful data may be lost (logs, debug info)
+    case caution = 2     // may contain important data (archives, builds)
+
+    static func < (lhs: CleanRisk, rhs: CleanRisk) -> Bool {
+        lhs.rawValue < rhs.rawValue
+    }
+
+    var label: String {
+        switch self {
+        case .safe:     return "safe"
+        case .moderate: return "moderate"
+        case .caution:  return "caution"
+        }
+    }
+}
+
+private let cleanTargets: [(name: String, paths: [String], risk: CleanRisk)] = [
+    ("System caches", ["~/Library/Caches/*"], .safe),
+    ("System logs", ["~/Library/Logs/*"], .moderate),
+    ("User temp files", ["/tmp/*"], .safe),
+    ("Xcode DerivedData", ["~/Library/Developer/Xcode/DerivedData/*"], .safe),
+    ("Xcode Archives", ["~/Library/Developer/Xcode/Archives/*"], .caution),
+    ("Xcode device support", ["~/Library/Developer/Xcode/iOS DeviceSupport/*"], .moderate),
+    ("Homebrew cache", ["~/Library/Caches/Homebrew/*"], .safe),
+    ("npm cache", ["~/.npm/_cacache/*"], .safe),
+    ("yarn cache", ["~/Library/Caches/Yarn/*"], .safe),
+    ("pip cache", ["~/Library/Caches/pip/*"], .safe),
+    ("Docker unused", [], .safe),      // special: handled via docker system prune
+    ("Trash", [], .safe),              // special: handled via Finder API
+    (".DS_Store files", [], .safe),    // special: find and delete
 ]
 
 func runCleanCommand(args: [String]) {
     let action = args.first ?? "run"
 
+    let force = args.contains("--force")
+    let dryRun = args.contains("--dry-run")
+
+    let maxRisk: CleanRisk
+    if args.contains("--all") {
+        maxRisk = .caution
+    } else if args.contains("--caution") {
+        maxRisk = .caution
+    } else if args.contains("--moderate") {
+        maxRisk = .moderate
+    } else {
+        maxRisk = .safe
+    }
+
     switch action {
-    case "run", "--force", "--dry-run":
-        let force = args.contains("--force")
-        let dryRun = args.contains("--dry-run")
-        runCleanup(force: force, dryRun: dryRun)
+    case "run", "--force", "--dry-run", "--safe", "--moderate", "--caution", "--all":
+        runCleanup(force: force, dryRun: dryRun, maxRisk: maxRisk)
 
     case "uninstall":
         guard args.count >= 2 else {
@@ -42,7 +72,7 @@ func runCleanCommand(args: [String]) {
             printCleanUsage()
             exit(1)
         }
-        runCleanup(force: false, dryRun: false)
+        runCleanup(force: force, dryRun: dryRun, maxRisk: maxRisk)
     }
 }
 
@@ -53,22 +83,28 @@ private func printCleanUsage() {
     print("  (no args)           — scan and clean (with confirmation)")
     print("  --dry-run           — show what would be cleaned")
     print("  --force             — skip confirmation")
+    print("  --safe              — only safe items (default)")
+    print("  --moderate          — safe + moderate items")
+    print("  --caution           — safe + moderate + caution items")
+    print("  --all               — all items regardless of risk")
     print("  uninstall <app>     — fully uninstall an app with all leftovers")
 }
 
 // MARK: - Cleanup
 
-private func runCleanup(force: Bool, dryRun: Bool) {
+private func runCleanup(force: Bool, dryRun: Bool, maxRisk: CleanRisk = .safe) {
     let fm = FileManager.default
     var totalSize: Int64 = 0
-    var results: [(name: String, size: Int64, paths: [String])] = []
+    var results: [(name: String, size: Int64, paths: [String], risk: CleanRisk)] = []
 
-    print("Scanning...\n")
+    let levelLabel = maxRisk == .caution ? "all" : maxRisk.label
+    print("Scanning (level: \(levelLabel))...\n")
 
     for target in cleanTargets {
         if target.name == "Docker unused" || target.name == "Trash" || target.name == ".DS_Store files" {
             continue // handle separately
         }
+        if target.risk > maxRisk { continue }
 
         var targetSize: Int64 = 0
         var expandedPaths: [String] = []
@@ -91,7 +127,7 @@ private func runCleanup(force: Bool, dryRun: Bool) {
         }
 
         if targetSize > 0 {
-            results.append((name: target.name, size: targetSize, paths: expandedPaths))
+            results.append((name: target.name, size: targetSize, paths: expandedPaths, risk: target.risk))
             totalSize += targetSize
         }
     }
@@ -100,7 +136,7 @@ private func runCleanup(force: Bool, dryRun: Bool) {
     if let trashURL = fm.urls(for: .trashDirectory, in: .userDomainMask).first {
         let trashSize = fileSize(trashURL.path)
         if trashSize > 0 {
-            results.append((name: "Trash", size: trashSize, paths: [trashURL.path]))
+            results.append((name: "Trash", size: trashSize, paths: [trashURL.path], risk: .safe))
             totalSize += trashSize
         }
     }
@@ -109,7 +145,7 @@ private func runCleanup(force: Bool, dryRun: Bool) {
     if let brewOutput = captureProcess("/usr/bin/env", args: ["brew", "cleanup", "-n"]) {
         let lines = brewOutput.components(separatedBy: "\n").filter { !$0.isEmpty }
         if !lines.isEmpty {
-            results.append((name: "Homebrew outdated (\(lines.count) items)", size: 0, paths: []))
+            results.append((name: "Homebrew outdated (\(lines.count) items)", size: 0, paths: [], risk: .safe))
         }
     }
 
@@ -123,13 +159,25 @@ private func runCleanup(force: Bool, dryRun: Bool) {
     for result in results {
         let name = result.name.padding(toLength: maxName + 2, withPad: " ", startingAt: 0)
         let size = result.size > 0 ? formatSize(result.size) : "cleanup available"
-        print("  \(name) \(size)")
+        let riskLabel: String
+        switch result.risk {
+        case .safe:     riskLabel = "[\u{2713} safe]"
+        case .moderate: riskLabel = "[~ moderate]"
+        case .caution:  riskLabel = "[! caution]"
+        }
+        let sizeStr = size.padding(toLength: 18, withPad: " ", startingAt: 0)
+        print("  \(name) \(sizeStr) \(riskLabel)")
     }
     print("")
     print("  Total: \(formatSize(totalSize))")
     print("")
 
     if dryRun {
+        if jsonMode {
+            let jsonResults = results.map { ["name": $0.name, "size_bytes": $0.size] as [String: Any] }
+            printJSON(["results": jsonResults, "total_bytes": totalSize])
+            return
+        }
         print("(dry run — nothing deleted)")
         return
     }

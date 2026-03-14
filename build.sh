@@ -17,6 +17,7 @@ swiftc \
     -framework CoreWLAN \
     -o "$BUILD_DIR/$APP_NAME" \
     Sources/main.swift \
+    Sources/JSONOutput.swift \
     Sources/DisplayCommand.swift \
     Sources/USBCommand.swift \
     Sources/CursorCommand.swift \
