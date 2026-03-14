@@ -32,20 +32,39 @@ private func dashSystem() -> [String] {
         lines.append(dashRow("Battery", "\(pct)% [\(bar)] \(status)"))
     }
 
-    // Network connection
-    if let iface = CWWiFiClient.shared().interface(),
-       let ssid = iface.ssid() {
-        let rssi = iface.rssiValue()
-        let quality: String
-        switch rssi {
-        case -50...0: quality = "Excellent"
-        case -60 ..< -50: quality = "Good"
-        case -70 ..< -60: quality = "Fair"
-        default: quality = "Weak"
+    // Network connection — CWWiFiClient hides SSID on macOS 15+ without Location Services
+    // Use system_profiler as reliable fallback
+    if let airportInfo = dashCapture("/bin/sh", args: ["-c", "system_profiler SPAirPortDataType 2>/dev/null | grep -A10 'Current Network Information:' | head -12"]),
+       airportInfo.contains("Status: Connected") || airportInfo.contains("PHY Mode") {
+        // Extract signal strength
+        var signal = ""
+        var quality = ""
+        for line in airportInfo.components(separatedBy: "\n") {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed.hasPrefix("Signal / Noise:") {
+                let parts = trimmed.replacingOccurrences(of: "Signal / Noise:", with: "").trimmingCharacters(in: .whitespaces)
+                if let dbm = parts.components(separatedBy: "/").first?.trimmingCharacters(in: .whitespaces) {
+                    signal = dbm
+                    let val = Int(dbm.replacingOccurrences(of: " dBm", with: "")) ?? -100
+                    switch val {
+                    case -50...0: quality = "Excellent"
+                    case -60 ..< -50: quality = "Good"
+                    case -70 ..< -60: quality = "Fair"
+                    default: quality = "Weak"
+                    }
+                }
+            }
         }
-        lines.append(dashRow("Network", "WiFi: \(ssid) \(rssi)dBm (\(quality))"))
+        // Try to get SSID from CWWiFiClient first
+        let ssid = CWWiFiClient.shared().interface()?.ssid()
+        if let ssid = ssid {
+            lines.append(dashRow("Network", "WiFi: \(ssid) \(signal) (\(quality))"))
+        } else if !signal.isEmpty {
+            lines.append(dashRow("Network", "WiFi: \(signal) (\(quality))"))
+        } else {
+            lines.append(dashRow("Network", "WiFi: connected"))
+        }
     } else if let ip = dashCapture("/usr/sbin/ipconfig", args: ["getifaddr", "en0"]), !ip.isEmpty {
-        // Not WiFi but has IP — likely Ethernet/USB adapter
         let activePort = dashCapture("/bin/sh", args: ["-c", "route -n get default 2>/dev/null | awk '/interface:/{print $2}'"]) ?? "en0"
         lines.append(dashRow("Network", "Ethernet (\(activePort))"))
     } else {
