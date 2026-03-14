@@ -1,11 +1,26 @@
 import Foundation
 
+private let cleanTargets: [(name: String, paths: [String])] = [
+    ("System caches", ["~/Library/Caches/*"]),
+    ("System logs", ["~/Library/Logs/*"]),
+    ("User temp files", ["/tmp/*"]),
+    ("Xcode DerivedData", ["~/Library/Developer/Xcode/DerivedData/*"]),
+    ("Xcode Archives", ["~/Library/Developer/Xcode/Archives/*"]),
+    ("Xcode device support", ["~/Library/Developer/Xcode/iOS DeviceSupport/*"]),
+    ("Homebrew cache", ["~/Library/Caches/Homebrew/*"]),
+    ("npm cache", ["~/.npm/_cacache/*"]),
+    ("yarn cache", ["~/Library/Caches/Yarn/*"]),
+    ("pip cache", ["~/Library/Caches/pip/*"]),
+    ("Docker unused", []),  // special: handled via docker system prune
+    ("Trash", []),          // special: handled via Finder API
+    (".DS_Store files", []),  // special: find and delete
+]
+
 func runCleanCommand(args: [String]) {
     let action = args.first ?? "run"
 
     switch action {
     case "run", "--force", "--dry-run":
-        ensureMacCleanup()
         let force = args.contains("--force")
         let dryRun = args.contains("--dry-run")
         runCleanup(force: force, dryRun: dryRun)
@@ -22,13 +37,11 @@ func runCleanCommand(args: [String]) {
         printCleanUsage()
 
     default:
-        // Treat as app name for uninstall if not a flag
         if action.hasPrefix("-") {
             fputs("Unknown option: \(action)\n", stderr)
             printCleanUsage()
             exit(1)
         }
-        ensureMacCleanup()
         runCleanup(force: false, dryRun: false)
     }
 }
@@ -37,76 +50,134 @@ private func printCleanUsage() {
     print("Usage: swiss clean [options]")
     print("")
     print("Commands:")
-    print("  (no args)           — run cleanup (shows preview, asks to confirm)")
-    print("  --dry-run           — show what would be cleaned without deleting")
+    print("  (no args)           — scan and clean (with confirmation)")
+    print("  --dry-run           — show what would be cleaned")
     print("  --force             — skip confirmation")
-    print("  uninstall <app>     — fully uninstall an app with all leftover files")
-    print("  help                — show this help")
+    print("  uninstall <app>     — fully uninstall an app with all leftovers")
 }
 
 // MARK: - Cleanup
 
-private func ensureMacCleanup() {
-    let process = Process()
-    process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-    process.arguments = ["which", "mac-cleanup"]
-    process.standardOutput = FileHandle.nullDevice
-    process.standardError = FileHandle.nullDevice
-    try? process.run()
-    process.waitUntilExit()
+private func runCleanup(force: Bool, dryRun: Bool) {
+    let fm = FileManager.default
+    var totalSize: Int64 = 0
+    var results: [(name: String, size: Int64, paths: [String])] = []
 
-    if process.terminationStatus != 0 {
-        fputs("Installing mac-cleanup...\n", stderr)
-        let install = Process()
-        install.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-        install.arguments = ["pip3", "install", "mac-cleanup"]
-        try? install.run()
-        install.waitUntilExit()
+    print("Scanning...\n")
 
-        if install.terminationStatus != 0 {
-            fputs("Error: Failed to install mac-cleanup. Try: pip3 install mac-cleanup\n", stderr)
-            exit(1)
+    for target in cleanTargets {
+        if target.name == "Docker unused" || target.name == "Trash" || target.name == ".DS_Store files" {
+            continue // handle separately
+        }
+
+        var targetSize: Int64 = 0
+        var expandedPaths: [String] = []
+
+        for pattern in target.paths {
+            let expanded = (pattern as NSString).expandingTildeInPath
+            let dir = (expanded as NSString).deletingLastPathComponent
+            guard fm.fileExists(atPath: dir) else { continue }
+
+            if let items = try? fm.contentsOfDirectory(atPath: dir) {
+                for item in items {
+                    let fullPath = dir + "/\(item)"
+                    let size = fileSize(fullPath)
+                    if size > 0 {
+                        targetSize += size
+                        expandedPaths.append(fullPath)
+                    }
+                }
+            }
+        }
+
+        if targetSize > 0 {
+            results.append((name: target.name, size: targetSize, paths: expandedPaths))
+            totalSize += targetSize
         }
     }
-}
 
-private func runCleanup(force: Bool, dryRun: Bool) {
+    // Trash size
+    if let trashURL = fm.urls(for: .trashDirectory, in: .userDomainMask).first {
+        let trashSize = fileSize(trashURL.path)
+        if trashSize > 0 {
+            results.append((name: "Trash", size: trashSize, paths: [trashURL.path]))
+            totalSize += trashSize
+        }
+    }
+
+    // Homebrew cleanup (estimate)
+    if let brewOutput = captureProcess("/usr/bin/env", args: ["brew", "cleanup", "-n"]) {
+        let lines = brewOutput.components(separatedBy: "\n").filter { !$0.isEmpty }
+        if !lines.isEmpty {
+            results.append((name: "Homebrew outdated (\(lines.count) items)", size: 0, paths: []))
+        }
+    }
+
+    // Print results
+    if results.isEmpty {
+        print("System is clean.")
+        return
+    }
+
+    let maxName = max(results.map { $0.name.count }.max() ?? 20, 20)
+    for result in results {
+        let name = result.name.padding(toLength: maxName + 2, withPad: " ", startingAt: 0)
+        let size = result.size > 0 ? formatSize(result.size) : "cleanup available"
+        print("  \(name) \(size)")
+    }
+    print("")
+    print("  Total: \(formatSize(totalSize))")
+    print("")
+
     if dryRun {
-        print("Dry run — showing what would be cleaned:\n")
-        execCleanup(["-n"])
+        print("(dry run — nothing deleted)")
+        return
     }
 
     if !force {
-        // Show dry run first
-        print("Scanning...\n")
-        let preview = Process()
-        preview.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-        preview.arguments = ["mac-cleanup", "-n"]
-        try? preview.run()
-        preview.waitUntilExit()
-
-        print("")
-        fputs("Proceed with cleanup? [y/N] ", stderr)
+        fputs("Clean all? [y/N] ", stderr)
         guard let answer = readLine(), answer.lowercased() == "y" else {
             print("Cancelled.")
             return
         }
     }
 
-    execCleanup([])
-}
+    // Execute cleanup
+    print("")
+    for result in results {
+        if result.name == "Trash" {
+            fputs("Emptying Trash...\n", stderr)
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+            process.arguments = ["rm", "-rf"]
+            if let trashURL = fm.urls(for: .trashDirectory, in: .userDomainMask).first,
+               let items = try? fm.contentsOfDirectory(atPath: trashURL.path) {
+                process.arguments! += items.map { trashURL.path + "/\($0)" }
+                try? process.run()
+                process.waitUntilExit()
+            }
+        } else if result.name.hasPrefix("Homebrew") {
+            fputs("Running brew cleanup...\n", stderr)
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+            process.arguments = ["brew", "cleanup"]
+            try? process.run()
+            process.waitUntilExit()
+        } else {
+            fputs("Cleaning \(result.name)...\n", stderr)
+            for path in result.paths {
+                try? fm.removeItem(atPath: path)
+            }
+        }
+    }
 
-private func execCleanup(_ args: [String]) -> Never {
-    let argv = (["mac-cleanup"] + args).map { strdup($0) } + [nil]
-    execvp("mac-cleanup", argv)
-    perror("Failed to exec mac-cleanup")
-    exit(1)
+    print("")
+    print("Cleaned \(formatSize(totalSize)).")
 }
 
 // MARK: - App Uninstall
 
 private func uninstallApp(_ appName: String) {
-    // Find the .app bundle
     let fm = FileManager.default
     let appPath: String
 
@@ -122,7 +193,6 @@ private func uninstallApp(_ appName: String) {
         exit(1)
     }
 
-    // Get bundle identifier
     let plistPath = appPath + "/Contents/Info.plist"
     guard let plist = NSDictionary(contentsOfFile: plistPath),
           let bundleID = plist["CFBundleIdentifier"] as? String else {
@@ -131,10 +201,8 @@ private func uninstallApp(_ appName: String) {
     }
 
     let appDisplayName = (appPath as NSString).lastPathComponent.replacingOccurrences(of: ".app", with: "")
-    print("Uninstalling \(appDisplayName) (\(bundleID))...")
-    print("")
+    print("Uninstalling \(appDisplayName) (\(bundleID))...\n")
 
-    // Find all associated files
     let searchPaths = [
         NSHomeDirectory() + "/Library/Application Support/\(bundleID)",
         NSHomeDirectory() + "/Library/Application Support/\(appDisplayName)",
@@ -157,15 +225,13 @@ private func uninstallApp(_ appName: String) {
         }
     }
 
-    // Also search for any plist files matching the bundle ID pattern
     let prefsDir = NSHomeDirectory() + "/Library/Preferences"
     if let prefs = try? fm.contentsOfDirectory(atPath: prefsDir) {
-        for file in prefs where file.contains(bundleID) {
+        for file in prefs where file.contains(bundleID) && !filesToRemove.contains(prefsDir + "/\(file)") {
             filesToRemove.append(prefsDir + "/\(file)")
         }
     }
 
-    // Show what will be removed
     print("Files to remove:")
     var totalSize: Int64 = 0
     for path in filesToRemove {
@@ -185,7 +251,6 @@ private func uninstallApp(_ appName: String) {
         return
     }
 
-    // Remove files
     for path in filesToRemove {
         do {
             try fm.removeItem(atPath: path)
@@ -197,6 +262,8 @@ private func uninstallApp(_ appName: String) {
     print("\(appDisplayName) uninstalled.")
 }
 
+// MARK: - Helpers
+
 private func fileSize(_ path: String) -> Int64 {
     let fm = FileManager.default
     var total: Int64 = 0
@@ -205,8 +272,7 @@ private func fileSize(_ path: String) -> Int64 {
         if attrs[.type] as? FileAttributeType == .typeDirectory {
             if let enumerator = fm.enumerator(atPath: path) {
                 while let file = enumerator.nextObject() as? String {
-                    let fullPath = path + "/\(file)"
-                    if let fileAttrs = try? fm.attributesOfItem(atPath: fullPath),
+                    if let fileAttrs = try? fm.attributesOfItem(atPath: path + "/\(file)"),
                        let size = fileAttrs[.size] as? Int64 {
                         total += size
                     }
@@ -228,4 +294,27 @@ private func formatSize(_ bytes: Int64) -> String {
         return String(format: "%.1f KB", Double(bytes) / 1024.0)
     }
     return "\(bytes) B"
+}
+
+private func captureProcess(_ path: String, args: [String]) -> String? {
+    let process = Process()
+    let pipe = Pipe()
+    process.executableURL = URL(fileURLWithPath: path)
+    process.arguments = args
+    process.standardOutput = pipe
+    process.standardError = FileHandle.nullDevice
+    try? process.run()
+
+    var data = Data()
+    let group = DispatchGroup()
+    group.enter()
+    DispatchQueue.global().async {
+        data = pipe.fileHandleForReading.readDataToEndOfFile()
+        group.leave()
+    }
+    process.waitUntilExit()
+    group.wait()
+
+    guard process.terminationStatus == 0 else { return nil }
+    return String(data: data, encoding: .utf8)
 }
