@@ -45,6 +45,7 @@ swiss maintain                      # update everything
 | `swiss clipboard [copy\|paste]` | Copy stdin / paste to stdout |
 | `swiss clean` | System cleanup (caches, logs, temp files) |
 | `swiss clean uninstall <app>` | Fully uninstall an app with all leftovers |
+| `swiss clean login` | Remove orphaned Login Items from uninstalled apps |
 
 ### Dashboard
 
@@ -140,9 +141,14 @@ swiss clean --moderate              # include moderate-risk items
 swiss clean --all                   # include all items
 swiss clean --dry-run               # preview without deleting
 swiss clean uninstall "Hidden Bar"  # fully remove an app + leftovers
+swiss clean login                   # remove orphaned background items
+swiss clean login --dry-run         # preview orphaned items
+sudo swiss clean login              # no password popups (recommended)
 ```
 
 Uninstall kills the running app, removes the `.app` bundle and all associated files (caches, preferences, logs, containers, saved state). Requests admin privileges if needed.
+
+Login cleanup parses the macOS Background Task Management database (`sfltool dumpbtm`) and scans LaunchAgent/LaunchDaemon directories to find orphaned background items from uninstalled apps. Detects launch agents, daemons, login items, and app entries — grouped by developer like System Settings. Removes plist files and resets the BTM database. Use `sudo` to avoid password popups. Requires reboot to take effect.
 
 ### Display Management
 

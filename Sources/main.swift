@@ -1,6 +1,6 @@
 import Foundation
 
-let version = "1.6.0"
+let version = "1.7.0"
 let jsonMode = CommandLine.arguments.contains("--json")
 let args = Array(CommandLine.arguments.dropFirst().filter { $0 != "--json" })
 
@@ -29,7 +29,7 @@ func printUsage() {
     print("  menubar [list|show|hide]   — manage menu bar icons")
     print("")
     print("Maintenance:")
-    print("  clean [--dry-run|uninstall] — system cleanup")
+    print("  clean [--dry-run|uninstall|login] — system cleanup")
     print("  maintain                    — update all tools and services")
     print("")
     print("Apps:")
