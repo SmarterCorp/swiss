@@ -32,7 +32,7 @@ private func dashSystem() -> [String] {
         lines.append(dashRow("Battery", "\(pct)% [\(bar)] \(status)"))
     }
 
-    // WiFi
+    // Network connection
     if let iface = CWWiFiClient.shared().interface(),
        let ssid = iface.ssid() {
         let rssi = iface.rssiValue()
@@ -43,9 +43,13 @@ private func dashSystem() -> [String] {
         case -70 ..< -60: quality = "Fair"
         default: quality = "Weak"
         }
-        lines.append(dashRow("WiFi", "\(ssid) \(rssi)dBm (\(quality))"))
+        lines.append(dashRow("Network", "WiFi: \(ssid) \(rssi)dBm (\(quality))"))
+    } else if let ip = dashCapture("/usr/sbin/ipconfig", args: ["getifaddr", "en0"]), !ip.isEmpty {
+        // Not WiFi but has IP — likely Ethernet/USB adapter
+        let activePort = dashCapture("/bin/sh", args: ["-c", "route -n get default 2>/dev/null | awk '/interface:/{print $2}'"]) ?? "en0"
+        lines.append(dashRow("Network", "Ethernet (\(activePort))"))
     } else {
-        lines.append(dashRow("WiFi", "disconnected"))
+        lines.append(dashRow("Network", "disconnected"))
     }
 
     // Displays
