@@ -67,13 +67,22 @@ private let knownCCItems = [
 ]
 
 private func listMenuBarItems() {
-    // Scan all defaults domains for NSStatusItem keys
-    guard let domainsOutput = captureCmd("/usr/bin/defaults", args: ["domains"]) else {
-        fputs("Error: Could not read defaults domains.\n", stderr)
+    // Fast scan: grep plist files for NSStatusItem instead of reading 900+ domains
+    let prefsDir = NSHomeDirectory() + "/Library/Preferences"
+    // grep returns exit 1 on binary plist files but still outputs matches
+    let grepOutput = captureCmd("/usr/bin/grep", args: ["-rl", "NSStatusItem", prefsDir], allowFailure: true) ?? ""
+    guard !grepOutput.isEmpty else {
+        fputs("Error: No menu bar items found.\n", stderr)
         exit(1)
     }
 
-    let domains = domainsOutput.components(separatedBy: ", ")
+    let domains = grepOutput.components(separatedBy: "\n")
+        .filter { !$0.isEmpty }
+        .map { path -> String in
+            // Convert /path/to/com.example.app.plist -> com.example.app
+            let filename = (path as NSString).lastPathComponent
+            return filename.replacingOccurrences(of: ".plist", with: "")
+        }
 
     struct MenuBarItem {
         let name: String
@@ -242,7 +251,7 @@ private func restartControlCenter() {
     process.waitUntilExit()
 }
 
-private func captureCmd(_ path: String, args: [String]) -> String? {
+private func captureCmd(_ path: String, args: [String], allowFailure: Bool = false) -> String? {
     let process = Process()
     let pipe = Pipe()
     process.executableURL = URL(fileURLWithPath: path)
@@ -261,7 +270,7 @@ private func captureCmd(_ path: String, args: [String]) -> String? {
     process.waitUntilExit()
     group.wait()
 
-    guard process.terminationStatus == 0 else { return nil }
+    if !allowFailure && process.terminationStatus != 0 { return nil }
     return String(data: data, encoding: .utf8)
 }
 
