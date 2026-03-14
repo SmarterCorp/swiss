@@ -42,6 +42,7 @@ swiftc \
     Sources/PassCommand.swift \
     Sources/MenuBarCommand.swift \
     Sources/CleanCommand.swift \
+    Sources/SleepCommand.swift \
     Sources/TwitterCommand.swift
 
 echo "Build complete: $BUILD_DIR/$APP_NAME"
