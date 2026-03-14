@@ -68,6 +68,7 @@ Build uses raw `swiftc` with explicit source file list and framework links.
 
 - **Before push/PR** — run a **code review** (check code quality, correctness, conventions from `REVIEW.md`)
 - **Before release** — run a **security review** (audit all security rules, process spawning, path handling, secrets, input validation)
+- **After push/release** — always verify CI/CD passes (`gh run list`, `gh run watch`). Do not report a release as successful until all workflows (build + release) complete with green status. If CI fails, investigate and fix before proceeding.
 
 ## What NOT to Do
 
