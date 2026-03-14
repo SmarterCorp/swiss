@@ -60,20 +60,35 @@ private func runSudo(_ command: [String]) {
         fputs("Password: ", stderr)
         let password = readPassword()
 
-        let process = Process()
-        let inPipe = Pipe()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/sudo")
-        process.arguments = ["-S"] + command
-        process.standardInput = inPipe
-        process.standardError = FileHandle.nullDevice
-        try? process.run()
+        // Validate password first with sudo -v
+        let validate = Process()
+        let valPipe = Pipe()
+        validate.executableURL = URL(fileURLWithPath: "/usr/bin/sudo")
+        validate.arguments = ["-S", "-v"]
+        validate.standardInput = valPipe
+        validate.standardError = FileHandle.nullDevice
+        try? validate.run()
 
-        inPipe.fileHandleForWriting.write((password + "\n").data(using: .utf8)!)
-        inPipe.fileHandleForWriting.closeFile()
+        // Small delay to let sudo open stdin
+        Thread.sleep(forTimeInterval: 0.1)
+        valPipe.fileHandleForWriting.write((password + "\n").data(using: .utf8)!)
+        valPipe.fileHandleForWriting.closeFile()
+        validate.waitUntilExit()
+
+        if validate.terminationStatus != 0 {
+            fputs("Error: Wrong password.\n", stderr)
+            exit(1)
+        }
+
+        // Now sudo is cached, run the actual command
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/sudo")
+        process.arguments = command
+        try? process.run()
         process.waitUntilExit()
 
         if process.terminationStatus != 0 {
-            fputs("\nError: Wrong password or insufficient privileges.\n", stderr)
+            fputs("Error: Command failed.\n", stderr)
             exit(1)
         }
     } else {
