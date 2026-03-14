@@ -1,171 +1,187 @@
 # swiss — CLI multitool for macOS
 
-A lightweight command-line utility for managing displays, USB devices, multi-monitor cursor navigation, RSS feeds, and more on macOS. Written in Swift, compiled with `swiftc`, no Xcode project required.
+A lightweight command-line utility for managing displays, services, RSS feeds, AI translation, voice dictation, and more on macOS. Written in Swift, compiled with `swiftc`, no Xcode project required.
 
 ## Build
 
 ```bash
 bash build.sh
+bash build.sh install   # install to /usr/local/bin
 ```
 
 Produces `build/swiss`. Target: `arm64-apple-macos13` (Apple Silicon).
 
-Linked frameworks: CoreGraphics, CoreDisplay, IOKit, AppKit.
+## Quick Start
+
+```bash
+swiss dash                          # system dashboard
+swiss status                        # check all services
+swiss maintain                      # update everything
+```
 
 ## Commands
 
-### `swiss display off`
+| Command | Description |
+|---|---|
+| `swiss dash` | System dashboard — battery, network, services, feeds, ports |
+| `swiss status` | Show status of all managed services |
+| `swiss maintain` | Update all tools, models, and containers |
+| `swiss display off/on` | Disconnect/reconnect external monitors |
+| `swiss usb` | List USB devices |
+| `swiss cursor start/stop` | Cursor teleporter between displays (Command+2) |
+| `swiss textream [text\|file]` | Open Textream teleprompter |
+| `swiss twitter [auth\|add\|remove\|list]` | Read Twitter via RSS (newsboat + self-hosted RSSHub) |
+| `swiss rss [args]` | RSS reader (newsboat, auto-installs) |
+| `swiss rss -ru` | RSS reader with articles pre-translated to Russian |
+| `swiss translate [text\|file]` | Translate English to Russian via Ollama (gemma3) |
+| `swiss voice` | Launch Pipit voice dictation (auto-installs) |
+| `swiss prompt add/remove/list` | Manage text expansions via Espanso |
+| `swiss dua [args]` | Disk usage analyzer (auto-installs) |
+| `swiss top [args]` | Activity monitor (auto-installs) |
+| `swiss wifi` | Show WiFi network info |
+| `swiss battery` | Show battery status and health |
+| `swiss ports` | List open listening ports |
+| `swiss trash [files...]` | Move files to Trash (no args: show info) |
+| `swiss clipboard [copy\|paste]` | Copy stdin / paste to stdout |
 
-Disconnects all external monitors (the built-in display stays on).
-
-Under the hood it uses the private API `CGSConfigureDisplayEnabled` — the same mechanism macOS uses internally. Each disconnected display ID is saved to `~/.swiss-display-state` so they can be reconnected later.
-
-```
-$ swiss display off
-Disconnecting DELL U2723QE (id: 725288513)...
-  Done
-
-To reconnect: swiss display on
-```
-
-### `swiss display on`
-
-Reconnects monitors previously disconnected with `swiss display off`. Reads display IDs from `~/.swiss-display-state`, re-enables each one, then deletes the state file.
-
-```
-$ swiss display on
-Reconnecting display (id: 725288513)...
-  Done
-
-Done.
-```
-
-If there is no state file (nothing was disconnected), the command exits with an error.
-
-### `swiss usb`
-
-Lists all connected USB devices with detailed information: device name, vendor, product ID, speed protocol, serial number, power draw, and location ID.
-
-Uses two detection methods:
-1. **system_profiler** (`SPUSBHostDataType`) — primary, works on macOS 26+, supports nested device hierarchy.
-2. **IOKit** (`IOUSBHostDevice`) — fallback, queries the IO registry directly.
-
-Output is a tree with `├──` / `└──` connectors:
+### Dashboard
 
 ```
-USB Devices (3):
-
-├── CalDigit TS4
-│   Vendor: CalDigit (0x2188)  Product: 0x0100
-│   Speed: USB 3.1 SuperSpeed+ (10 Gbps)
-│   Serial: F20123456
-│   Power: 0 mA
-│   Location: 0x02100000
-│
-├── Keyboard
-│   Vendor: Apple Inc. (0x05ac)  Product: 0x0267
-│   Speed: USB 2.0 High Speed (480 Mbps)
-│   Power: 500 mA
-│   Location: 0x02130000
-│
-└── ...
+$ swiss dash
+╭─ System ─────────────────────────────────────────────╮
+│ Battery   94% [#########.] on battery                │
+│ Network   WiFi: -50 dBm (Excellent)                  │
+│ Displays  1 external                                 │
+│ Disk      78 GB free / 460 GB                        │
+╰──────────────────────────────────────────────────────╯
+╭─ Services ───────────────────────────────────────────╮
+│ [+] espanso     [+] ollama      [+] docker           │
+│ [-] cursor      [+] rsshub      [-] pipit            │
+╰──────────────────────────────────────────────────────╯
+╭─ Feeds ──────────────────────────────────────────────╮
+│ RSS       10 feeds                                   │
+│ Twitter   1 accounts (@karpathy)                     │
+│ Prompts   1 expansions                               │
+╰──────────────────────────────────────────────────────╯
+╭─ Network ────────────────────────────────────────────╮
+│ IP        192.168.68.50                              │
+│ Ports     6 listening (1200, 5000, 7000, 11434)      │
+╰──────────────────────────────────────────────────────╯
 ```
 
-### `swiss cursor start`
+### Twitter via RSS
 
-Starts a background daemon that listens for **Command+2** and teleports the mouse cursor between displays.
+Self-hosted RSSHub via Docker. Auto-installs Docker Desktop if needed.
 
-**How it works:**
-
-1. The daemon creates a [CGEventTap](https://developer.apple.com/documentation/coregraphics/cgevent) that intercepts keyboard events at the session level.
-2. When Command+2 is detected (keycode 19 + Command flag, no other modifiers):
-   - The current cursor position is saved for the current display.
-   - The cursor jumps to the **next display** in the cycle (sorted left-to-right by screen position).
-   - If the target display was visited before, the cursor returns to the **exact saved position**. Otherwise it lands at the **center** of the screen.
-   - The original Command+2 keypress is suppressed (not passed to apps).
-3. The daemon writes its PID to `~/.swiss-cursor.pid` and runs `CFRunLoopRun()` to stay alive.
-4. Handles SIGTERM and SIGINT — cleans up the PID file on exit.
-
-```
-$ swiss cursor start &
-Cursor teleporter running (PID 12345). Press Command+2 to teleport between displays.
+```bash
+swiss twitter auth <token>      # set Twitter auth token (from x.com cookies)
+swiss twitter add @karpathy     # subscribe to a Twitter account
+swiss twitter                   # open newsboat with Twitter feeds
+swiss twitter -ru               # open with articles translated to Russian
 ```
 
-Display cycling order: screens are sorted by X coordinate (left to right), then Y coordinate. After the last display, it wraps back to the first.
+### AI Translation
 
-**Requires Accessibility permission.** If the event tap fails to create, the daemon prints instructions:
+Uses Ollama with gemma3 model. Auto-installs Ollama and pulls the model on first use.
 
-```
-Failed to create event tap.
-Grant Accessibility permission: System Settings → Privacy & Security → Accessibility
-```
-
-You need to add `swiss` (or Terminal / your terminal emulator) to the Accessibility list.
-
-### `swiss cursor stop`
-
-Stops a running cursor teleporter daemon.
-
-1. Reads PID from `~/.swiss-cursor.pid`.
-2. Sends SIGTERM to the process.
-3. Removes the PID file.
-
-```
-$ swiss cursor stop
-Cursor teleporter stopped (PID 12345).
+```bash
+swiss translate "Hello world"           # translate text
+swiss translate file.txt                # translate a file
+cat article.txt | swiss translate       # translate from stdin
+swiss rss -ru                           # pre-translate all RSS feeds
 ```
 
-### `swiss textream [text|file]`
+### Voice Dictation
 
-Opens the Textream teleprompter app via its URL scheme (`textream://`).
+Installs and launches Pipit — local speech-to-text. Press Option key, speak, release to paste text.
 
-- `swiss textream` — opens Textream with no text.
-- `swiss textream "Hello world"` — opens Textream with the given text.
-- `swiss textream path/to/file.txt` — reads the file and sends its contents to Textream.
-- `echo "Hello" | swiss textream` — reads text from stdin (pipe).
+```bash
+swiss voice         # install (if needed) and launch Pipit
+```
 
-Requires the Textream app to be installed.
+### Text Expansions
 
-### `swiss rss [args]`
+Manages text snippets via Espanso. Type a trigger anywhere and it expands.
 
-Terminal RSS reader. Wraps [newsboat](https://newsboat.org/) — auto-installs via Homebrew if not present.
+```bash
+swiss prompt add :addr 123 Main Street, Dubai
+swiss prompt add :sig Best regards, John
+swiss prompt list
+swiss prompt remove :addr
+swiss prompt start                      # start Espanso daemon
+swiss prompt stop
+```
 
-- `swiss rss` — launches newsboat.
-- `swiss rss <args>` — passes arguments directly to `newsboat`.
+### Display Management
 
-### `swiss dua [args]`
+```bash
+swiss display off       # disconnect external monitors
+swiss display on        # reconnect them
+```
 
-Disk usage analyzer. Wraps [dua-cli](https://github.com/Byron/dua-cli) — auto-installs via Homebrew if not present.
+Uses the private API `CGSConfigureDisplayEnabled`. Display IDs saved to `~/.swiss-display-state`.
 
-- `swiss dua` — launches interactive mode (`dua interactive`).
-- `swiss dua <args>` — passes arguments directly to `dua`.
+### Cursor Teleporter
 
-### `swiss top [args]`
+```bash
+swiss cursor start &    # start daemon (Command+2 to jump between displays)
+swiss cursor stop       # stop daemon
+```
 
-Activity monitor. Wraps [bottom](https://github.com/ClementTsang/bottom) (`btm`) — auto-installs via Homebrew if not present.
+Requires Accessibility permission.
 
-- `swiss top` — launches `btm` with no arguments.
-- `swiss top <args>` — passes arguments directly to `btm`.
+## Services & Dependencies
 
-## File structure
+| Service | Installed via | Used by |
+|---|---|---|
+| newsboat | `brew install newsboat` | `rss`, `twitter` |
+| Ollama + gemma3 | `brew install ollama` | `translate`, `rss -ru` |
+| Docker Desktop | `brew install --cask docker` | `twitter` (RSSHub container) |
+| Espanso | `brew install --cask espanso` | `prompt` |
+| Pipit | GitHub releases DMG | `voice` |
+| dua-cli | `brew install dua-cli` | `dua` |
+| bottom | `brew install bottom` | `top` |
+
+All dependencies are auto-installed on first use. Run `swiss maintain` to update everything.
+
+## File Structure
 
 ```
 Sources/
   main.swift              — CLI entry point and command dispatcher
-  DisplayCommand.swift    — display on/off logic (private CoreGraphics API)
+  DashCommand.swift       — system dashboard
+  StatusCommand.swift     — service status checks
+  MaintainCommand.swift   — update all tools and services
+  DisplayCommand.swift    — display on/off (private CoreGraphics API)
   USBCommand.swift        — USB device listing (system_profiler + IOKit)
-  CursorCommand.swift     — cursor teleporter daemon (CGEventTap + AppKit)
-  TextreamCommand.swift   — Textream app launcher via URL scheme
+  CursorCommand.swift     — cursor teleporter daemon (CGEventTap)
+  TextreamCommand.swift   — Textream app launcher
+  TwitterCommand.swift    — Twitter via RSS (RSSHub + newsboat)
   RSSCommand.swift        — newsboat wrapper
-  BrewDependency.swift    — Auto-install Homebrew dependencies
+  TranslateCommand.swift  — EN→RU translation via Ollama
+  FeedTranslator.swift    — batch feed translation with caching
+  NewsboatConfig.swift    — newsboat config generation
+  VoiceCommand.swift      — Pipit voice dictation installer
+  PromptCommand.swift     — Espanso text expansion manager
+  DockerDependency.swift  — Docker auto-install and container management
+  BrewDependency.swift    — Homebrew auto-install
   DuaCommand.swift        — dua-cli wrapper
   TopCommand.swift        — bottom (btm) wrapper
+  WiFiCommand.swift       — WiFi info
+  BatteryCommand.swift    — battery status
+  PortsCommand.swift      — listening ports
+  TrashCommand.swift      — trash management
+  ClipboardCommand.swift  — clipboard copy/paste
 build.sh                  — single-file build script
 ```
 
-## State files
+## State & Config Files
 
-| File | Created by | Purpose |
-|---|---|---|
-| `~/.swiss-display-state` | `display off` | Stores disconnected display IDs (one per line) |
-| `~/.swiss-cursor.pid` | `cursor start` | Daemon PID for `cursor stop` |
+| File | Purpose |
+|---|---|
+| `~/.swiss-display-state` | Disconnected display IDs |
+| `~/.swiss-cursor.pid` | Cursor teleporter daemon PID |
+| `~/.config/swiss/twitter` | Twitter auth token |
+| `~/.config/swiss/newsboat-config` | Generated newsboat config |
+| `~/.cache/swiss/translated/` | Translation cache (7-day eviction) |
+| `~/Library/Application Support/espanso/match/swiss.yml` | Text expansion triggers |
