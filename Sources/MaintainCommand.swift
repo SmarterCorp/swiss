@@ -1,7 +1,7 @@
 import Foundation
 
 private let brewPackages = ["newsboat", "ollama", "dua-cli", "bottom"]
-private let brewCasks = ["docker", "espanso"]
+private let brewCasks = ["docker", "espanso", "1password-cli"]
 private let ollamaModel = "gemma3"
 private let rsshubImage = "diygod/rsshub"
 private let rsshubContainer = "rsshub"
