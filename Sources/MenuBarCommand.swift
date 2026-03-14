@@ -1,4 +1,5 @@
 import Foundation
+import AppKit
 
 private let domain = "com.apple.controlcenter"
 
@@ -49,83 +50,106 @@ private func printMenuBarUsage() {
 
 // MARK: - List
 
-// Known system menu bar items
-private let knownSystemItems = [
+// Friendly names for known bundle IDs
+private let bundleNames: [String: String] = [
+    "com.apple.controlcenter": "Control Center",
+    "com.apple.Spotlight": "Spotlight",
+    "com.apple.TextInputMenuAgent": "Input Menu",
+    "com.apple.Passwords.MenuBarExtra": "Passwords",
+    "com.apple.systemuiserver": "System UI",
+]
+
+// Known Control Center sub-items
+private let knownCCItems = [
     "WiFi", "Bluetooth", "Battery", "Sound", "Clock",
     "BentoBox", "Display", "FaceTime", "NowPlaying",
-    "ScreenMirroring", "UserSwitcher", "Accessibility",
-    "KeyboardBrightness", "AirDrop",
+    "ScreenMirroring", "UserSwitcher",
 ]
 
 private func listMenuBarItems() {
-    guard let output = captureDefaults(["read", domain]) else {
-        fputs("Error: Could not read menu bar settings.\n", stderr)
+    // Scan all defaults domains for NSStatusItem keys
+    guard let domainsOutput = captureCmd("/usr/bin/defaults", args: ["domains"]) else {
+        fputs("Error: Could not read defaults domains.\n", stderr)
         exit(1)
     }
 
-    let lines = output.components(separatedBy: "\n")
+    let domains = domainsOutput.components(separatedBy: ", ")
 
-    // Collect all items from both Visible and VisibleCC keys
-    var visibleMap: [String: Bool] = [:]   // from "NSStatusItem Visible X"
-    var visibleCCMap: [String: Bool] = [:] // from "NSStatusItem VisibleCC X"
-    var positionMap: [String: Int] = [:]
+    struct MenuBarItem {
+        let name: String
+        let domain: String
+        var position: Int?
+        var visible: Bool
+    }
 
-    for line in lines {
-        let trimmed = line.trimmingCharacters(in: .whitespaces)
-        let parts = trimmed.components(separatedBy: "=")
-        guard parts.count == 2 else { continue }
-        let keyPart = parts[0].trimmingCharacters(in: .whitespaces)
-        let valPart = parts[1].trimmingCharacters(in: .init(charactersIn: " ;"))
+    var items: [MenuBarItem] = []
 
-        if trimmed.contains("NSStatusItem Visible ") && !trimmed.contains("VisibleCC") && !trimmed.contains("Preferred") {
-            let name = keyPart
-                .replacingOccurrences(of: "\"NSStatusItem Visible ", with: "")
-                .replacingOccurrences(of: "\"", with: "")
-            if !name.hasPrefix("Item-") {
-                visibleMap[name] = valPart == "1"
+    // 1. System items from controlcenter
+    if let ccOutput = captureDefaults(["read", "com.apple.controlcenter"]) {
+        let lines = ccOutput.components(separatedBy: "\n")
+        var visibleMap: [String: Bool] = [:]
+        var visibleCCMap: [String: Bool] = [:]
+        var posMap: [String: Int] = [:]
+
+        for line in lines {
+            let t = line.trimmingCharacters(in: .whitespaces)
+            let parts = t.components(separatedBy: "=")
+            guard parts.count == 2 else { continue }
+            let k = parts[0].trimmingCharacters(in: .whitespaces)
+            let v = parts[1].trimmingCharacters(in: .init(charactersIn: " ;"))
+
+            if t.contains("NSStatusItem Visible ") && !t.contains("VisibleCC") && !t.contains("Preferred") {
+                let name = k.replacingOccurrences(of: "\"NSStatusItem Visible ", with: "").replacingOccurrences(of: "\"", with: "")
+                if !name.hasPrefix("Item-") { visibleMap[name] = v == "1" }
+            } else if t.contains("NSStatusItem VisibleCC ") {
+                let name = k.replacingOccurrences(of: "\"NSStatusItem VisibleCC ", with: "").replacingOccurrences(of: "\"", with: "")
+                if !name.contains("-") { visibleCCMap[name] = v == "1" }
+            } else if t.contains("NSStatusItem Preferred Position ") {
+                let name = k.replacingOccurrences(of: "\"NSStatusItem Preferred Position ", with: "").replacingOccurrences(of: "\"", with: "")
+                if !name.contains("-") { posMap[name] = Int(v) }
             }
-        } else if trimmed.contains("NSStatusItem VisibleCC ") {
-            let name = keyPart
-                .replacingOccurrences(of: "\"NSStatusItem VisibleCC ", with: "")
-                .replacingOccurrences(of: "\"", with: "")
-            visibleCCMap[name] = valPart == "1"
-        } else if trimmed.contains("NSStatusItem Preferred Position ") {
-            let name = keyPart
-                .replacingOccurrences(of: "\"NSStatusItem Preferred Position ", with: "")
-                .replacingOccurrences(of: "\"", with: "")
-            positionMap[name] = Int(valPart)
+        }
+
+        for name in Set(knownCCItems).union(visibleMap.keys).union(visibleCCMap.keys) {
+            let vis = visibleMap[name] ?? visibleCCMap[name] ?? (posMap[name] != nil)
+            items.append(MenuBarItem(name: name, domain: "controlcenter", position: posMap[name], visible: vis))
         }
     }
 
-    // Build unified item list
-    var allNames = Set(knownSystemItems)
-    allNames.formUnion(visibleMap.keys)
-    allNames.formUnion(visibleCCMap.keys.filter { !$0.contains("-") }) // skip BentoBox-0
+    // 2. Third-party and other system apps
+    for d in domains {
+        let d = d.trimmingCharacters(in: .whitespacesAndNewlines)
+        if d == "com.apple.controlcenter" { continue }
 
-    var items: [(name: String, visible: Bool, position: Int?)] = []
-    for name in allNames {
-        // Item is visible if: explicitly Visible=1, or VisibleCC=1 and not explicitly Visible=0
-        let explicit = visibleMap[name]
-        let cc = visibleCCMap[name]
-        let visible: Bool
-        if let v = explicit {
-            visible = v
-        } else if let c = cc {
-            visible = c
-        } else {
-            // Known system item with no keys — check if it has a position (means it's shown)
-            visible = positionMap[name] != nil
+        guard let output = captureDefaults(["read", d]) else { continue }
+        guard output.contains("NSStatusItem") else { continue }
+
+        let lines = output.components(separatedBy: "\n")
+        var hasPosition = false
+        var position: Int? = nil
+
+        for line in lines {
+            let t = line.trimmingCharacters(in: .whitespaces)
+            if t.contains("NSStatusItem Preferred Position") {
+                hasPosition = true
+                let parts = t.components(separatedBy: "=")
+                if parts.count == 2 {
+                    position = Int(parts[1].trimmingCharacters(in: .init(charactersIn: " ;")))
+                }
+            }
         }
-        items.append((name: name, visible: visible, position: positionMap[name]))
+
+        // App has a menu bar presence
+        let friendly = bundleNames[d] ?? appNameFromBundle(d)
+        items.append(MenuBarItem(name: friendly, domain: d, position: position, visible: hasPosition))
     }
 
-    // Sort: shown first (by position), then hidden alphabetically
+    // Sort: by position (left to right), items without position at the end
     items.sort { a, b in
         if a.visible != b.visible { return a.visible }
-        if a.visible {
-            return (a.position ?? 9999) < (b.position ?? 9999)
-        }
-        return a.name < b.name
+        let posA = a.position ?? 9999
+        let posB = b.position ?? 9999
+        return posA < posB
     }
 
     if items.isEmpty {
@@ -133,7 +157,7 @@ private func listMenuBarItems() {
         return
     }
 
-    let maxName = max(items.map { $0.name.count }.max() ?? 10, 16)
+    let maxName = max(items.map { $0.name.count }.max() ?? 10, 20)
     print("Menu bar items:")
     print("")
     for item in items {
@@ -142,6 +166,15 @@ private func listMenuBarItems() {
         let pos = item.position.map { "pos: \($0)" } ?? ""
         print("  \(icon) \(name)  \(pos)")
     }
+}
+
+private func appNameFromBundle(_ bundleID: String) -> String {
+    // Try to get app name from bundle ID
+    if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) {
+        return url.deletingPathExtension().lastPathComponent
+    }
+    // Fallback: extract last component of bundle ID
+    return bundleID.components(separatedBy: ".").last ?? bundleID
 }
 
 // MARK: - Show / Hide
@@ -207,6 +240,29 @@ private func restartControlCenter() {
     process.standardError = FileHandle.nullDevice
     try? process.run()
     process.waitUntilExit()
+}
+
+private func captureCmd(_ path: String, args: [String]) -> String? {
+    let process = Process()
+    let pipe = Pipe()
+    process.executableURL = URL(fileURLWithPath: path)
+    process.arguments = args
+    process.standardOutput = pipe
+    process.standardError = FileHandle.nullDevice
+    try? process.run()
+
+    var data = Data()
+    let group = DispatchGroup()
+    group.enter()
+    DispatchQueue.global().async {
+        data = pipe.fileHandleForReading.readDataToEndOfFile()
+        group.leave()
+    }
+    process.waitUntilExit()
+    group.wait()
+
+    guard process.terminationStatus == 0 else { return nil }
+    return String(data: data, encoding: .utf8)
 }
 
 private func captureDefaults(_ args: [String]) -> String? {
