@@ -8,7 +8,7 @@ private let rsshubContainer = "rsshub"
 
 func runMaintainCommand() {
     var step = 1
-    let total = 5
+    let total = 6
 
     // 1. Brew packages
     printStep(step, total, "Updating Homebrew packages...")
@@ -49,7 +49,12 @@ func runMaintainCommand() {
         fputs("  Ollama not running, skipping.\n", stderr)
     }
 
-    // 5. Pipit
+    // 5. mac-cleanup
+    printStep(step, total, "Updating mac-cleanup...")
+    step += 1
+    runVisible("/usr/bin/env", args: ["pip3", "install", "--upgrade", "mac-cleanup"])
+
+    // 6. Pipit
     printStep(step, total, "Checking Pipit updates...")
     updatePipit()
 
