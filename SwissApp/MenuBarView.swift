@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct MenuBarView: View {
+    var onOpenSettings: () -> Void = {}
     @StateObject private var viewModel = MenuBarViewModel()
 
     var body: some View {
@@ -87,7 +88,7 @@ struct MenuBarView: View {
             // Footer
             HStack {
                 Button("Settings...") {
-                    NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+                    onOpenSettings()
                 }
                 .buttonStyle(.plain)
                 .font(.caption)
