@@ -186,6 +186,145 @@ private func getDevicesFromIOKit() -> [USBDevice] {
     return devices.sorted { $0.locationID < $1.locationID }
 }
 
+// MARK: - Power Adapter info from IOKit
+
+private struct PowerAdapter {
+    let name: String
+    let watts: Int
+    let vendor: String
+    let productID: String
+    let serialNumber: String
+    let adapterVoltage: Int      // mV
+    let maxCurrent: Int          // mA
+    let liveWatts: Double
+    let liveVoltage: Double      // V
+    let liveCurrent: Double      // A
+    let pdVersion: String
+    let pdProfiles: [(voltage: Int, current: Int)] // mV, mA
+}
+
+private func getPowerAdapter() -> PowerAdapter? {
+    var iter = io_iterator_t()
+    let matching = IOServiceMatching("AppleSmartBattery")
+    guard IOServiceGetMatchingServices(kIOMainPortDefault, matching, &iter) == KERN_SUCCESS else {
+        return nil
+    }
+    defer { IOObjectRelease(iter) }
+
+    let service = IOIteratorNext(iter)
+    guard service != 0 else { return nil }
+    defer { IOObjectRelease(service) }
+
+    var propsRef: Unmanaged<CFMutableDictionary>?
+    guard IORegistryEntryCreateCFProperties(service, &propsRef, kCFAllocatorDefault, 0) == KERN_SUCCESS,
+          let props = propsRef?.takeRetainedValue() as? [String: Any] else {
+        return nil
+    }
+
+    guard let adapterDict = props["AdapterDetails"] as? [String: Any],
+          let adapterName = adapterDict["Name"] as? String else {
+        return nil
+    }
+
+    return parseAdapterDetails(adapterDict, name: adapterName, props: props)
+}
+
+private func parseAdapterDetails(_ adapter: [String: Any], name: String,
+                                 props: [String: Any]) -> PowerAdapter {
+    let watts = adapter["Watts"] as? Int ?? 0
+    let vendor = adapter["Manufacturer"] as? String ?? ""
+    let productID = adapter["Model"] as? String ?? ""
+    let serial = adapter["SerialString"] as? String ?? ""
+    let adapterVoltage = adapter["AdapterVoltage"] as? Int ?? 0
+    let maxCurrent = adapter["Current"] as? Int ?? 0
+
+    // Live power from PowerTelemetryData
+    let telemetry = props["PowerTelemetryData"] as? [String: Any]
+    let liveVoltageRaw = telemetry?["SystemVoltageIn"] as? Int ?? 0
+    let liveCurrentRaw = telemetry?["SystemCurrentIn"] as? Int ?? 0
+    let liveVoltage = Double(liveVoltageRaw) / 1000.0
+    let liveCurrent = Double(liveCurrentRaw) / 1000.0
+    let liveWatts = liveVoltage * liveCurrent
+
+    // USB PD version from FedDetails
+    let pdVersion = parsePdVersion(props)
+
+    // PD voltage profiles from UsbHvcMenu
+    var profiles: [(voltage: Int, current: Int)] = []
+    if let menu = adapter["UsbHvcMenu"] as? [[String: Any]] {
+        for entry in menu {
+            let v = entry["MaxVoltage"] as? Int ?? 0
+            let c = entry["MaxCurrent"] as? Int ?? 0
+            if v > 0 { profiles.append((voltage: v, current: c)) }
+        }
+    }
+
+    return PowerAdapter(
+        name: name, watts: watts, vendor: vendor, productID: productID,
+        serialNumber: serial, adapterVoltage: adapterVoltage, maxCurrent: maxCurrent,
+        liveWatts: liveWatts, liveVoltage: liveVoltage, liveCurrent: liveCurrent,
+        pdVersion: pdVersion, pdProfiles: profiles
+    )
+}
+
+private func parsePdVersion(_ props: [String: Any]) -> String {
+    guard let fedDetails = props["FedDetails"] as? [[String: Any]] else { return "" }
+    for fed in fedDetails {
+        if let rev = fed["FedPdSpecRevision"] as? Int, rev > 0 {
+            return "USB PD \(rev + 1).0"
+        }
+    }
+    return ""
+}
+
+private func printPowerAdapter(_ adapter: PowerAdapter) {
+    print("Power Adapter:")
+    print("")
+    print("  \(adapter.name)")
+    let maxV = Double(adapter.adapterVoltage) / 1000.0
+    let maxA = Double(adapter.maxCurrent) / 1000.0
+    print("  Power: \(adapter.watts) W (\(Int(maxV)) V up to \(Int(maxA)) A)")
+
+    let liveStr = String(format: "%.1f W (%.1f V at %.2f A)",
+                         adapter.liveWatts, adapter.liveVoltage, adapter.liveCurrent)
+    print("  Live Power: \(liveStr)")
+
+    if !adapter.pdVersion.isEmpty {
+        print("  Version: \(adapter.pdVersion)")
+    }
+    if !adapter.vendor.isEmpty { print("  Vendor: \(adapter.vendor)") }
+    if !adapter.productID.isEmpty { print("  Product: \(adapter.productID)") }
+    if !adapter.serialNumber.isEmpty { print("  Serial: \(adapter.serialNumber)") }
+
+    if !adapter.pdProfiles.isEmpty {
+        let profileStrs = adapter.pdProfiles.map { p in
+            "\(p.voltage / 1000)V/\(p.current / 1000)A"
+        }
+        print("  PD Profiles: \(profileStrs.joined(separator: ", "))")
+    }
+    print("")
+}
+
+private func adapterToJSON(_ adapter: PowerAdapter) -> [String: Any] {
+    var dict: [String: Any] = [
+        "name": adapter.name,
+        "watts": adapter.watts,
+        "vendor": adapter.vendor,
+        "product_id": adapter.productID,
+        "serial_number": adapter.serialNumber,
+        "adapter_voltage_mv": adapter.adapterVoltage,
+        "max_current_ma": adapter.maxCurrent,
+        "live_watts": adapter.liveWatts,
+        "live_voltage_v": adapter.liveVoltage,
+        "live_current_a": adapter.liveCurrent,
+    ]
+    if !adapter.pdVersion.isEmpty { dict["pd_version"] = adapter.pdVersion }
+    if !adapter.pdProfiles.isEmpty {
+        dict["pd_profiles"] = adapter.pdProfiles.map { ["voltage_mv": $0.voltage, "current_ma": $0.current] }
+    }
+    return dict
+}
+
 // MARK: - Formatting
 
 private func printDevice(_ device: USBDevice, prefix: String, indent: String, isLast: Bool) {
@@ -256,14 +395,21 @@ func runUSBCommand() {
     if devices.isEmpty {
         devices = getDevicesFromIOKit()
     }
+    let adapter = getPowerAdapter()
 
     if jsonMode {
-        printJSON(["devices": flattenDevices(devices)])
+        var result: [String: Any] = ["devices": flattenDevices(devices)]
+        if let adapter = adapter { result["power_adapter"] = adapterToJSON(adapter) }
+        printJSON(result)
         return
     }
 
+    if let adapter = adapter {
+        printPowerAdapter(adapter)
+    }
+
     if devices.isEmpty {
-        print("No USB devices found.")
+        if adapter == nil { print("No USB devices found.") }
         return
     }
 

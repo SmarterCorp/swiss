@@ -27,7 +27,7 @@ swiss maintain                      # update everything
 | `swiss status` | Show status of all managed services |
 | `swiss maintain` | Update all tools, models, and containers |
 | `swiss display off/on` | Disconnect/reconnect external monitors |
-| `swiss usb` | List USB devices |
+| `swiss usb` | List USB devices and power adapter info |
 | `swiss cursor start/stop` | Cursor teleporter between displays (Command+2) |
 | `swiss textream [text\|file]` | Open Textream teleprompter |
 | `swiss twitter [auth\|add\|remove\|list]` | Read Twitter via RSS (newsboat + self-hosted RSSHub) |
@@ -43,6 +43,8 @@ swiss maintain                      # update everything
 | `swiss ports` | List open listening ports |
 | `swiss trash [files...]` | Move files to Trash (no args: show info) |
 | `swiss clipboard [copy\|paste]` | Copy stdin / paste to stdout |
+| `swiss clean` | System cleanup (caches, logs, temp files) |
+| `swiss clean uninstall <app>` | Fully uninstall an app with all leftovers |
 
 ### Dashboard
 
@@ -112,6 +114,41 @@ swiss prompt start                      # start Espanso daemon
 swiss prompt stop
 ```
 
+### USB & Power Adapter
+
+```bash
+swiss usb               # list USB devices + power adapter info
+swiss usb --json        # JSON output
+```
+
+Shows connected USB devices and, when a charger is connected, detailed power adapter info: rated/live wattage, USB PD version, voltage/current profiles, vendor, serial.
+
+```
+$ swiss usb
+Power Adapter:
+
+  61W USB-C Power Adapter
+  Power: 60 W (20 V up to 3 A)
+  Live Power: 17.1 W (20.3 V at 0.84 A)
+  Version: USB PD 2.0
+  Vendor: Apple Inc.
+  Product: 0x1685
+  Serial: C0614520AFVPM0RA1
+  PD Profiles: 5V/3A, 9V/3A, 15V/3A, 20V/3A
+```
+
+### System Cleanup & App Uninstall
+
+```bash
+swiss clean                         # scan and clean (safe items only)
+swiss clean --moderate              # include moderate-risk items
+swiss clean --all                   # include all items
+swiss clean --dry-run               # preview without deleting
+swiss clean uninstall "Hidden Bar"  # fully remove an app + leftovers
+```
+
+Uninstall kills the running app, removes the `.app` bundle and all associated files (caches, preferences, logs, containers, saved state). Requests admin privileges if needed.
+
 ### Display Management
 
 ```bash
@@ -153,7 +190,8 @@ Sources/
   StatusCommand.swift     — service status checks
   MaintainCommand.swift   — update all tools and services
   DisplayCommand.swift    — display on/off (private CoreGraphics API)
-  USBCommand.swift        — USB device listing (system_profiler + IOKit)
+  USBCommand.swift        — USB device listing + power adapter (system_profiler + IOKit)
+  CleanCommand.swift      — system cleanup and app uninstaller
   CursorCommand.swift     — cursor teleporter daemon (CGEventTap)
   TextreamCommand.swift   — Textream app launcher
   TwitterCommand.swift    — Twitter via RSS (RSSHub + newsboat)
