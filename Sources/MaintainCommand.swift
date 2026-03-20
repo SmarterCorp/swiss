@@ -8,7 +8,7 @@ private let rsshubContainer = "rsshub"
 
 func runMaintainCommand() {
     var step = 1
-    let total = 5
+    let total = 4
 
     // 1. Brew packages
     printStep(step, total, "Updating Homebrew packages...")
@@ -48,10 +48,6 @@ func runMaintainCommand() {
     } else {
         fputs("  Ollama not running, skipping.\n", stderr)
     }
-
-    // 5. Pipit
-    printStep(step, total, "Checking Pipit updates...")
-    updatePipit()
 
     print("")
     print("Done.")
@@ -111,100 +107,3 @@ private func runCapture(_ path: String, args: [String]) -> String? {
     return String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
 }
 
-// MARK: - Pipit update
-
-private func updatePipit() {
-    let appPath = "/Applications/Pipit.app"
-    guard FileManager.default.fileExists(atPath: appPath) else {
-        fputs("  Pipit not installed, skipping.\n", stderr)
-        return
-    }
-
-    // Get installed version from Info.plist
-    let plistPath = appPath + "/Contents/Info.plist"
-    let installedVersion: String
-    if let plist = NSDictionary(contentsOfFile: plistPath),
-       let version = plist["CFBundleShortVersionString"] as? String {
-        installedVersion = version
-    } else {
-        installedVersion = "unknown"
-    }
-
-    // Check latest GitHub release
-    guard let latestJSON = runCapture("/usr/bin/curl", args: [
-        "-s", "--max-time", "10",
-        "-H", "Accept: application/vnd.github+json",
-        "https://api.github.com/repos/pxkan/Pipit-Releases/releases/latest",
-    ]) else {
-        fputs("  Could not check for updates.\n", stderr)
-        return
-    }
-
-    guard let jsonData = latestJSON.data(using: .utf8),
-          let json = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
-          let tagName = json["tag_name"] as? String else {
-        fputs("  Could not parse release info.\n", stderr)
-        return
-    }
-
-    let latestVersion = tagName.hasPrefix("v") ? String(tagName.dropFirst()) : tagName
-
-    if installedVersion == latestVersion {
-        print("  Pipit \(installedVersion) (up to date)")
-    } else {
-        print("  Pipit \(installedVersion) -> \(latestVersion), updating...")
-        // Find DMG download URL
-        if let assets = json["assets"] as? [[String: Any]],
-           let dmgAsset = assets.first(where: { ($0["name"] as? String)?.hasSuffix(".dmg") == true }),
-           let downloadURL = dmgAsset["browser_download_url"] as? String {
-            installPipitUpdate(from: downloadURL)
-        } else {
-            fputs("  Could not find DMG in release assets.\n", stderr)
-        }
-    }
-}
-
-private func installPipitUpdate(from url: String) {
-    let tmpDmg = NSTemporaryDirectory() + "Pipit-update.dmg"
-    let fm = FileManager.default
-
-    // Download
-    runVisible("/usr/bin/curl", args: ["-L", "-o", tmpDmg, "--progress-bar", url])
-
-    // Mount
-    guard let mountOutput = runCapture("/usr/bin/hdiutil", args: ["attach", tmpDmg, "-nobrowse", "-quiet"]) else {
-        fputs("  Failed to mount DMG.\n", stderr)
-        try? fm.removeItem(atPath: tmpDmg)
-        return
-    }
-
-    let volumePath = mountOutput.components(separatedBy: "\t").last?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "/Volumes/Pipit"
-    let sourceApp = volumePath + "/Pipit.app"
-    let destApp = "/Applications/Pipit.app"
-
-    // Kill Pipit if running
-    _ = runSilent("/usr/bin/pkill", args: ["-x", "Pipit"])
-    Thread.sleep(forTimeInterval: 1)
-
-    // Replace
-    try? fm.removeItem(atPath: destApp)
-    let copy = Process()
-    copy.executableURL = URL(fileURLWithPath: "/bin/cp")
-    copy.arguments = ["-R", sourceApp, destApp]
-    try? copy.run()
-    copy.waitUntilExit()
-
-    // Cleanup
-    _ = runSilent("/usr/bin/hdiutil", args: ["detach", volumePath, "-quiet"])
-    try? fm.removeItem(atPath: tmpDmg)
-
-    // Verify code signature
-    if !runSilent("/usr/bin/codesign", args: ["--verify", "--deep", "--strict", destApp]) {
-        fputs("  Warning: Updated app failed code signature verification.\n", stderr)
-        try? fm.removeItem(atPath: destApp)
-        fputs("  Removed unsigned app for safety.\n", stderr)
-        return
-    }
-
-    print("  Pipit updated (signature verified).")
-}

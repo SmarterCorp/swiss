@@ -1,6 +1,6 @@
 # swiss — CLI multitool for macOS
 
-A lightweight command-line utility for managing displays, services, RSS feeds, AI translation, voice dictation, and more on macOS. Written in Swift, compiled with `swiftc`, no Xcode project required.
+A lightweight command-line utility for managing displays, services, RSS feeds, AI translation, and more on macOS. Written in Swift, compiled with `swiftc`, no Xcode project required.
 
 ## Build
 
@@ -34,18 +34,17 @@ swiss maintain                      # update everything
 | `swiss rss [args]` | RSS reader (newsboat, auto-installs) |
 | `swiss rss -ru` | RSS reader with articles pre-translated to Russian |
 | `swiss translate [text\|file]` | Translate English to Russian via Ollama (gemma3) |
-| `swiss voice` | Launch Pipit voice dictation (auto-installs) |
 | `swiss prompt add/remove/list` | Manage text expansions via Espanso |
 | `swiss dua [args]` | Disk usage analyzer (auto-installs) |
 | `swiss top [args]` | Activity monitor (auto-installs) |
 | `swiss wifi` | Show WiFi network info |
 | `swiss battery` | Show battery status and health |
 | `swiss ports` | List open listening ports |
-| `swiss trash [files...]` | Move files to Trash (no args: show info) |
 | `swiss clipboard [copy\|paste]` | Copy stdin / paste to stdout |
 | `swiss clean` | System cleanup (caches, logs, temp files) |
 | `swiss clean uninstall <app>` | Fully uninstall an app with all leftovers |
 | `swiss clean login` | Remove orphaned Login Items from uninstalled apps |
+| `swiss install [list\|<app>]` | Bootstrap apps for a new Mac |
 
 ### Dashboard
 
@@ -59,7 +58,7 @@ $ swiss dash
 ╰──────────────────────────────────────────────────────╯
 ╭─ Services ───────────────────────────────────────────╮
 │ [+] espanso     [+] ollama      [+] docker           │
-│ [-] cursor      [+] rsshub      [-] pipit            │
+│ [-] cursor      [+] rsshub                            │
 ╰──────────────────────────────────────────────────────╯
 ╭─ Feeds ──────────────────────────────────────────────╮
 │ RSS       10 feeds                                   │
@@ -94,12 +93,14 @@ cat article.txt | swiss translate       # translate from stdin
 swiss rss -ru                           # pre-translate all RSS feeds
 ```
 
-### Voice Dictation
+### App Bootstrap
 
-Installs and launches Pipit — local speech-to-text. Press Option key, speak, release to paste text.
+Install all tools and apps for a new Mac in one command.
 
 ```bash
-swiss voice         # install (if needed) and launch Pipit
+swiss install              # install all missing apps
+swiss install list         # show catalog with install status
+swiss install ghostty      # install a specific app
 ```
 
 ### Text Expansions
@@ -176,7 +177,6 @@ Requires Accessibility permission.
 | Ollama + gemma3 | `brew install ollama` | `translate`, `rss -ru` |
 | Docker Desktop | `brew install --cask docker` | `twitter` (RSSHub container) |
 | Espanso | `brew install --cask espanso` | `prompt` |
-| Pipit | GitHub releases DMG | `voice` |
 | dua-cli | `brew install dua-cli` | `dua` |
 | bottom | `brew install bottom` | `top` |
 
@@ -200,8 +200,8 @@ Sources/
   TranslateCommand.swift  — EN→RU translation via Ollama
   FeedTranslator.swift    — batch feed translation with caching
   NewsboatConfig.swift    — newsboat config generation
-  VoiceCommand.swift      — Pipit voice dictation installer
   PromptCommand.swift     — Espanso text expansion manager
+  InstallCommand.swift    — app bootstrap installer
   DockerDependency.swift  — Docker auto-install and container management
   BrewDependency.swift    — Homebrew auto-install
   DuaCommand.swift        — dua-cli wrapper
@@ -209,7 +209,6 @@ Sources/
   WiFiCommand.swift       — WiFi info
   BatteryCommand.swift    — battery status
   PortsCommand.swift      — listening ports
-  TrashCommand.swift      — trash management
   ClipboardCommand.swift  — clipboard copy/paste
 build.sh                  — single-file build script
 ```

@@ -53,7 +53,6 @@ func runDashCommand() {
             ["name": "docker", "running": dashCheckSilent("/usr/bin/env", args: ["docker", "info"])],
             ["name": "cursor", "running": dashCheckPID(NSString("~/.swiss-cursor.pid").expandingTildeInPath)],
             ["name": "rsshub", "running": dashCheckContainer("rsshub")],
-            ["name": "pipit", "running": dashCheckSilent("/usr/bin/pgrep", args: ["-x", "Pipit"])],
         ]
         result["services"] = services
 
@@ -197,7 +196,6 @@ private func dashServices() -> [String] {
         ("docker", dashCheckSilent("/usr/bin/env", args: ["docker", "info"])),
         ("cursor", dashCheckPID(NSString("~/.swiss-cursor.pid").expandingTildeInPath)),
         ("rsshub", dashCheckContainer("rsshub")),
-        ("pipit", dashCheckSilent("/usr/bin/pgrep", args: ["-x", "Pipit"])),
     ]
 
     // Layout in 3 columns

@@ -17,7 +17,6 @@ func printUsage() {
     print("")
     print("Utilities:")
     print("  clipboard [copy|paste] — copy stdin / paste to stdout")
-    print("  trash [files...]       — move files to Trash (no args: show info)")
     print("  prompt [add|remove|list] — manage text expansions (Espanso)")
     print("  pass [get|search|login]  — 1Password CLI")
     print("  translate [text|file]    — translate English to Russian (Ollama)")
@@ -29,13 +28,13 @@ func printUsage() {
     print("  menubar [list|show|hide]   — manage menu bar icons")
     print("")
     print("Maintenance:")
+    print("  install [list|<app>]        — bootstrap apps for a new Mac")
     print("  clean [--dry-run|uninstall|login] — system cleanup")
     print("  maintain                    — update all tools and services")
     print("")
     print("Apps:")
     print("  textream [text|file]              — Textream teleprompter")
     print("  twitter [auth|add|remove|list]    — Twitter via RSS (newsboat + RSSHub)")
-    print("  voice                             — Pipit voice dictation (auto-installs)")
     print("  rss [args]                        — RSS reader (newsboat, auto-installs)")
     print("  dua [args]                        — disk usage analyzer (auto-installs)")
     print("  top [args]                        — activity monitor (auto-installs)")
@@ -63,14 +62,14 @@ case "twitter":
     runTwitterCommand(args: Array(args.dropFirst()))
 case "translate":
     runTranslateCommand(args: Array(args.dropFirst()))
-case "voice":
-    runVoiceCommand()
 case "prompt":
     runPromptCommand(args: Array(args.dropFirst()))
 case "pass":
     runPassCommand(args: Array(args.dropFirst()))
 case "menubar":
     runMenuBarCommand(args: Array(args.dropFirst()))
+case "install":
+    runInstallCommand(args: Array(args.dropFirst()))
 case "clean":
     runCleanCommand(args: Array(args.dropFirst()))
 case "sleep":
@@ -87,8 +86,6 @@ case "battery":
     runBatteryCommand()
 case "ports":
     runPortsCommand()
-case "trash":
-    runTrashCommand(args: Array(args.dropFirst()))
 case "clipboard":
     runClipboardCommand(args: Array(args.dropFirst()))
 case "status":

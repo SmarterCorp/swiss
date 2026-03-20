@@ -23,9 +23,6 @@ func runStatusCommand() {
     // RSSHub container
     let rsshubRunning = dockerRunning ? checkDockerContainer("rsshub") : false
 
-    // Pipit
-    let pipitRunning = checkCommand("/usr/bin/pgrep", args: ["-x", "Pipit"])
-
     if jsonMode {
         let services: [[String: Any]] = [
             ["name": "cursor", "running": cursorRunning],
@@ -33,7 +30,6 @@ func runStatusCommand() {
             ["name": "ollama", "running": ollamaRunning],
             ["name": "docker", "running": dockerRunning],
             ["name": "rsshub", "running": rsshubRunning],
-            ["name": "pipit", "running": pipitRunning],
         ]
         printJSON(["services": services])
         return
@@ -58,7 +54,6 @@ func runStatusCommand() {
         printStatus("rsshub", running: false, detail: "docker not running")
     }
 
-    printStatus("voice (pipit)", running: pipitRunning)
 }
 
 private func printStatus(_ name: String, running: Bool, detail: String? = nil) {

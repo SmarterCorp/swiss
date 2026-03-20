@@ -29,19 +29,18 @@ swiftc \
     Sources/WiFiCommand.swift \
     Sources/BatteryCommand.swift \
     Sources/PortsCommand.swift \
-    Sources/TrashCommand.swift \
     Sources/ClipboardCommand.swift \
     Sources/DockerDependency.swift \
     Sources/TranslateCommand.swift \
     Sources/FeedTranslator.swift \
     Sources/NewsboatConfig.swift \
-    Sources/VoiceCommand.swift \
     Sources/PromptCommand.swift \
     Sources/StatusCommand.swift \
     Sources/MaintainCommand.swift \
     Sources/DashCommand.swift \
     Sources/PassCommand.swift \
     Sources/MenuBarCommand.swift \
+    Sources/InstallCommand.swift \
     Sources/CleanCommand.swift \
     Sources/SleepCommand.swift \
     Sources/TwitterCommand.swift
@@ -71,6 +70,5 @@ else
     echo "  $APP_NAME wifi          — WiFi network info"
     echo "  $APP_NAME battery       — battery status and health"
     echo "  $APP_NAME ports         — list open listening ports"
-    echo "  $APP_NAME trash [files] — move to Trash / show info"
     echo "  $APP_NAME clipboard     — copy/paste via stdin/stdout"
 fi

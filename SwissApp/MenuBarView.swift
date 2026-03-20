@@ -56,9 +56,6 @@ struct MenuBarView: View {
 
             // Quick actions
             VStack(spacing: 2) {
-                actionButton("Start Voice", icon: "mic.fill") {
-                    Task { await CLIBridge.run(["voice"]) }
-                }
                 actionButton("Open RSS", icon: "newspaper.fill") {
                     Task { await CLIBridge.run(["rss"]) }
                 }
