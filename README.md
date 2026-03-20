@@ -45,6 +45,38 @@ swiss maintain                      # update everything
 | `swiss clean uninstall <app>` | Fully uninstall an app with all leftovers |
 | `swiss clean login` | Remove orphaned Login Items from uninstalled apps |
 | `swiss install [list\|<app>]` | Bootstrap apps for a new Mac |
+| `swiss tui` | Interactive terminal UI (REPL) |
+
+### Interactive TUI
+
+```bash
+swiss tui                   # launch interactive terminal UI
+```
+
+Two variants:
+
+- `swiss tui` — built-in ncurses REPL (no extra dependencies)
+- `swiss-tui` — standalone bun-based TUI (requires [bun](https://bun.sh), built separately)
+
+Type any swiss command without the `swiss` prefix, see results inline, scroll through history.
+
+```
+┌─ swiss v1.7.0 ──────────────────────────────────────┐
+│                                                      │
+│  > battery                                           │
+│  Battery:                                            │
+│    Charge       85%                                  │
+│    Status       On Battery                           │
+│                                                      │
+│  > wifi                                              │
+│  WiFi: HomeNetwork -52 dBm (Good)                    │
+│                                                      │
+├──────────────────────────────────────────────────────┤
+│  swiss> _                                            │
+└─ Tab:complete  Up/Down:history  PgUp/PgDn:scroll ────┘
+```
+
+Keys: **Tab** autocomplete, **Up/Down** command history, **PgUp/PgDn** scroll output, **Ctrl-C** quit. `home`/`menu`/`back`/`clear` return to welcome screen. History persisted to `~/.swiss-tui-history`.
 
 ### Dashboard
 
@@ -210,6 +242,8 @@ Sources/
   BatteryCommand.swift    — battery status
   PortsCommand.swift      — listening ports
   ClipboardCommand.swift  — clipboard copy/paste
+  TUICommand.swift        — interactive terminal UI (ncurses REPL)
+  CursesShim.h            — C bridging header for ncurses
 build.sh                  — single-file build script
 ```
 
@@ -223,3 +257,4 @@ build.sh                  — single-file build script
 | `~/.config/swiss/newsboat-config` | Generated newsboat config |
 | `~/.cache/swiss/translated/` | Translation cache (7-day eviction) |
 | `~/Library/Application Support/espanso/match/swiss.yml` | Text expansion triggers |
+| `~/.swiss-tui-history` | TUI command history |

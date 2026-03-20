@@ -1,0 +1,11 @@
+{
+  "name": "swiss-tui",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "bun index.ts"
+  },
+  "dependencies": {
+    "@opentui/core": "latest"
+  }
+}
