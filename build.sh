@@ -15,6 +15,8 @@ swiftc \
     -framework IOKit \
     -framework AppKit \
     -framework CoreWLAN \
+    -import-objc-header Sources/CursesShim.h \
+    -lncurses \
     -o "$BUILD_DIR/$APP_NAME" \
     Sources/main.swift \
     Sources/JSONOutput.swift \
@@ -43,16 +45,31 @@ swiftc \
     Sources/InstallCommand.swift \
     Sources/CleanCommand.swift \
     Sources/SleepCommand.swift \
-    Sources/TwitterCommand.swift
+    Sources/TwitterCommand.swift \
+    Sources/TUICommand.swift
 
 echo "Build complete: $BUILD_DIR/$APP_NAME"
+
+# Build TUI (bun) — optional, skipped if bun is not installed
+if command -v bun &>/dev/null; then
+    echo "Building swiss-tui..."
+    (cd tui && bun install --frozen-lockfile 2>/dev/null; bun build --compile index.ts --outfile "../$BUILD_DIR/swiss-tui")
+    echo "Build complete: $BUILD_DIR/swiss-tui"
+else
+    echo "Skipping swiss-tui (bun not installed)"
+fi
 
 INSTALL_DIR="/usr/local/bin"
 
 if [[ "$1" == "install" ]]; then
     echo "Installing $APP_NAME to $INSTALL_DIR..."
     cp "$BUILD_DIR/$APP_NAME" "$INSTALL_DIR/$APP_NAME"
-    echo "Installed! You can now use '$APP_NAME' from anywhere."
+    codesign --force --sign - "$INSTALL_DIR/$APP_NAME"
+    if [ -f "$BUILD_DIR/swiss-tui" ]; then
+        cp "$BUILD_DIR/swiss-tui" "$INSTALL_DIR/swiss-tui"
+        codesign --force --sign - "$INSTALL_DIR/swiss-tui"
+    fi
+    echo "Installed!"
 else
     echo ""
     echo "To install system-wide, run:"

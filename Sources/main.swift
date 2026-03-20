@@ -39,6 +39,9 @@ func printUsage() {
     print("  dua [args]                        — disk usage analyzer (auto-installs)")
     print("  top [args]                        — activity monitor (auto-installs)")
     print("")
+    print("Interactive:")
+    print("  tui                    — interactive terminal UI")
+    print("")
     print("  version              — print version")
     print("")
     print("Usage: swiss <command> [args]")
@@ -94,6 +97,8 @@ case "maintain":
     runMaintainCommand()
 case "dash":
     runDashCommand()
+case "tui":
+    runTUICommand(args: Array(args.dropFirst()))
 case "version", "-v", "--version":
     print("swiss \(version)")
 case "help", "-h", "--help":
