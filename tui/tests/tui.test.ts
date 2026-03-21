@@ -146,30 +146,25 @@ describe("createStatusBarTexts", () => {
     diskFreeGB: 50,
   }
 
-  test("returns non-empty array", () => {
+  test("returns single-element array", () => {
     const texts = createStatusBarTexts(info)
     expect(Array.isArray(texts)).toBe(true)
-    expect(texts.length).toBeGreaterThan(0)
-  })
-
-  test("returns 7 elements (bat, sep, wifi, sep, disk, sep, quit)", () => {
-    const texts = createStatusBarTexts(info)
-    expect(texts.length).toBe(7)
+    expect(texts.length).toBe(1)
   })
 
   test("works with not charging", () => {
     const texts = createStatusBarTexts({ battery: { percent: 42, charging: false }, wifi: "X", diskFreeGB: 10 })
-    expect(texts.length).toBe(7)
+    expect(texts.length).toBe(1)
   })
 
-  test("works with long wifi name (truncated to 12)", () => {
+  test("works with long wifi name", () => {
     const texts = createStatusBarTexts({ battery: { percent: 50, charging: false }, wifi: "VeryLongNetworkName", diskFreeGB: 10 })
-    expect(texts.length).toBe(7)
+    expect(texts.length).toBe(1)
   })
 
   test("works with empty wifi", () => {
     const texts = createStatusBarTexts({ battery: { percent: 50, charging: false }, wifi: "", diskFreeGB: 0 })
-    expect(texts.length).toBe(7)
+    expect(texts.length).toBe(1)
   })
 })
 

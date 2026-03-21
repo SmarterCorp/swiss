@@ -7,7 +7,7 @@ import { colors } from "./colors"
 import { getSystemInfo } from "./system-info"
 import { createWelcomeLines } from "./welcome"
 import { createStatusBarTexts } from "./status-bar"
-import { runSwissCommand } from "./swiss"
+import { runSwissCommand, runInteractiveCommand, interactiveCommands } from "./swiss"
 import { version } from "./version"
 
 type Mode = "welcome" | "repl"
@@ -82,8 +82,15 @@ export async function createApp(renderer: CliRenderer) {
 
     // Status bar
     Box(
-      { width: "100%", height: 1, backgroundColor: colors.bgSurface },
-      ...statusTexts,
+      { width: "100%", height: 1, backgroundColor: colors.bgSurface, justifyContent: "space-between" },
+      Box(
+        { height: 1 },
+        ...statusTexts,
+      ),
+      Box(
+        { height: 1 },
+        Text({ content: "esc:back  ctrl+c:quit  ", fg: colors.textDim }),
+      ),
     ),
   )
 
@@ -141,22 +148,42 @@ export async function createApp(renderer: CliRenderer) {
     try {
       if (mode !== "repl") switchToRepl()
       appendToRepl([{ content: `  ❯ ${cmd}`, fg: colors.accent, bold: true }])
-      const output = await runSwissCommand(cmd)
-      const outputLines = output.split("\n").map(line => ({
-        content: `    ${line || " "}`,
-        fg: colors.textNormal,
-      }))
-      outputLines.push({ content: " ", fg: colors.textDim })
-      appendToRepl(outputLines)
+
+      const firstWord = cmd.trim().split(/\s+/)[0]
+      let output: string
+
+      if (interactiveCommands.has(firstWord)) {
+        output = await runInteractiveCommand(cmd, renderer)
+      } else {
+        output = await runSwissCommand(cmd)
+      }
+
+      if (output) {
+        const outputLines = output.split("\n").map(line => ({
+          content: `    ${line || " "}`,
+          fg: colors.textNormal,
+        }))
+        outputLines.push({ content: " ", fg: colors.textDim })
+        appendToRepl(outputLines)
+      } else {
+        appendToRepl([{ content: "    (no output)", fg: colors.textDim }])
+      }
+    } catch (err: any) {
+      appendToRepl([{ content: `    Error: ${err?.message ?? err}`, fg: colors.error }])
     } finally {
       running = false
     }
   }
 
-  // Keyboard — only ctrl+c to exit
+  // Global keyboard
   renderer.keyInput.on("keypress", async (key: KeyEvent) => {
     if (key.ctrl && key.name === "c") {
       process.exit(0)
+    }
+    if (key.name === "escape" && mode === "repl") {
+      switchToWelcome()
+      const ri = renderer.root.findDescendantById("cmd-input") as InputRenderable | undefined
+      if (ri) { ri.value = ""; ri.focus() }
     }
   })
 }
